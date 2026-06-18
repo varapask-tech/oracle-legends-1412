@@ -12,6 +12,13 @@ const PORTRAITS: Record<string, string> = {
   "two-crystal": "/assets/characters/ms2-crystal.png",
   "three-star": "/assets/characters/ms3-creative.png",
   "four-earth": "/assets/characters/mr4-wellness.png",
+  "aria-flame": "/assets/characters/aria-flame.png",
+  "luna-tide": "/assets/characters/luna-tide.png",
+  "kael-stone": "/assets/characters/kael-stone.png",
+  "nyx-shadow": "/assets/characters/nyx-shadow.png",
+  "sol-dawn": "/assets/characters/sol-dawn.png",
+  "frost-whisper": "/assets/characters/frost-whisper.png",
+  "ember-phoenix": "/assets/characters/ember-phoenix.png",
 };
 
 const ELEMENT_EMOJI: Record<string, string> = { fire: "🔥", water: "💧", earth: "🌿", light: "⚡", dark: "🌑" };
