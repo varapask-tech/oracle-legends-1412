@@ -25,5 +25,13 @@ style.textContent = `
     60% { transform: scale(1.1) rotate(2deg); opacity: 1; }
     100% { transform: scale(1) rotate(0); opacity: 1; }
   }
+  @keyframes unit-idle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  @keyframes dmg-float {
+    0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-30px); }
+  }
 `;
 document.head.appendChild(style);

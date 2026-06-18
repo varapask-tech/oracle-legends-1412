@@ -11,7 +11,6 @@ export class Game {
   private battle: Battle2D | null = null;
   private currentScreen: Screen = "menu";
   private container: HTMLElement;
-  private battleCanvas: HTMLCanvasElement | null = null;
   private animFrameId = 0;
   private lastTime = 0;
 
@@ -86,14 +85,9 @@ export class Game {
 
     const wrapper = document.createElement("div");
     wrapper.style.cssText = "width:100%; height:100%; position:relative; background:#0a0a1a;";
+    this.container.appendChild(wrapper);
 
-    this.battleCanvas = document.createElement("canvas");
-    this.battleCanvas.width = 960;
-    this.battleCanvas.height = 540;
-    this.battleCanvas.style.cssText = "width:100%; height:100%; display:block;";
-    wrapper.appendChild(this.battleCanvas);
-
-    this.battle = new Battle2D(this.battleCanvas, {
+    this.battle = new Battle2D(wrapper, {
       onEnd: (result, gold, exp, crystals) => {
         if (result === "won") {
           this.gsm.addGold(gold);
@@ -105,9 +99,6 @@ export class Game {
         this.showRewards(result, gold, exp, crystals);
       },
     });
-
-    wrapper.appendChild(this.battle.effectsElement);
-    this.container.appendChild(wrapper);
 
     const heroTemplates: HeroTemplate[] = [];
     const heroLevels: number[] = [];
