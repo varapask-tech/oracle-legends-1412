@@ -6,6 +6,25 @@ import { Battle2D } from "./battle";
 
 type Screen = "menu" | "battle" | "heroes" | "summon" | "shop" | "rewards";
 
+const PORTRAITS: Record<string, string> = {
+  "zero-void": "/assets/characters/mr0-zero.png",
+  "one-thunder": "/assets/characters/mr1-thunder.png",
+  "two-crystal": "/assets/characters/ms2-crystal.png",
+  "three-star": "/assets/characters/ms3-creative.png",
+  "four-earth": "/assets/characters/mr4-wellness.png",
+};
+
+const ELEMENT_EMOJI: Record<string, string> = { fire: "🔥", water: "💧", earth: "🌿", light: "⚡", dark: "🌑" };
+
+function heroPortrait(id: string, size: number, borderColor: string): string {
+  const url = PORTRAITS[id];
+  if (url) {
+    return `<img src="${url}" style="width:${size}px; height:${size}px; object-fit:contain; border-radius:8px; border:2px solid ${borderColor}; background:rgba(10,5,20,0.6);" onerror="this.style.display='none'">`;
+  }
+  const tmpl = HERO_TEMPLATES.find((t) => t.id === id);
+  return `<div style="width:${size}px; height:${size}px; border-radius:8px; border:2px solid ${borderColor}; background:#${(tmpl?.modelColor ?? 0x333333).toString(16).padStart(6, "0")}; display:flex; align-items:center; justify-content:center; font-size:${size/2}px;">${ELEMENT_EMOJI[tmpl?.element ?? "dark"] ?? "✨"}</div>`;
+}
+
 export class Game {
   private gsm: GameStateManager;
   private battle: Battle2D | null = null;
@@ -233,12 +252,12 @@ export class Game {
 
       const card = document.createElement("div");
       card.style.cssText = `
-        width:80px; padding:8px; border-radius:8px; text-align:center;
+        width:90px; padding:8px; border-radius:8px; text-align:center;
         background:rgba(20,10,40,0.8); border:2px solid ${rarityColors[rarity]};
         animation: summon-pop 0.3s ease ${i * 0.1}s both;
       `;
       card.innerHTML = `
-        <div style="font-size:24px; margin-bottom:4px;">${tmpl.element === "fire" ? "🔥" : tmpl.element === "water" ? "💧" : tmpl.element === "earth" ? "🌿" : tmpl.element === "light" ? "⚡" : "🌑"}</div>
+        <div style="display:flex; justify-content:center; margin-bottom:4px;">${heroPortrait(tmpl.id, 56, rarityColors[rarity])}</div>
         <div style="font-size:11px; color:${rarityColors[rarity]}; font-weight:bold;">${tmpl.name}</div>
         <div style="font-size:9px; color:#888;">${rarity}</div>
       `;
@@ -272,7 +291,7 @@ export class Game {
         text-align:center; transition:transform 0.15s;
       `;
       card.innerHTML = `
-        <div style="font-size:28px; margin-bottom:4px;">${tmpl.element === "fire" ? "🔥" : tmpl.element === "water" ? "💧" : tmpl.element === "earth" ? "🌿" : tmpl.element === "light" ? "⚡" : "🌑"}</div>
+        <div style="display:flex; justify-content:center; margin-bottom:6px;">${heroPortrait(tmpl.id, 64, color)}</div>
         <div style="font-size:13px; color:${color}; font-weight:bold;">${tmpl.name}</div>
         <div style="font-size:11px; color:#aaa;">Lv.${hero.level} ${tmpl.heroClass}</div>
         <div style="font-size:10px; color:#888; margin-top:4px;">HP ${tmpl.baseStats.hp + tmpl.growthPerLevel.hp * (hero.level - 1)} ATK ${tmpl.baseStats.atk + tmpl.growthPerLevel.atk * (hero.level - 1)}</div>
