@@ -8,7 +8,9 @@ const CHARACTER_MAP: Record<string, string> = {
   "luna-tideweaver": "/assets/characters/luna-tide.png",
   "kael-stoneguard": "/assets/characters/kael-stone.png",
   "nyx-shadowstep": "/assets/characters/nyx-shadow.png",
-  "sol-lightbringer": "/assets/characters/sol-light.png",
+  "sol-lightbringer": "/assets/characters/sol-dawn.png",
+  "frost-whisper": "/assets/characters/frost-whisper.png",
+  "ember-phoenix": "/assets/characters/ember-phoenix.png",
 };
 
 const BG_MAP: Record<string, string> = {
