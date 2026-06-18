@@ -385,6 +385,7 @@ export class Game {
     header.appendChild(backBtn);
 
     screen.appendChild(header);
+    this.container.appendChild(screen);
     return screen;
   }
 
