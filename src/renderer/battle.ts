@@ -2,6 +2,7 @@ import type { HeroTemplate } from "../shared/types";
 import { COMBAT } from "../shared/balance";
 import { STAGES, enemyStatsForStage } from "../shared/stages";
 import { createBattleState, executeTurn, spawnNextWave, type BattleState, type BattleUnit } from "./systems/battle";
+import { SpriteAnimator, FORMATION_HERO, FORMATION_ENEMY } from "./sprite-animator";
 
 const CHAPTER_BG: Record<number, string> = {
   1: "/assets/backgrounds/bg-forest.png",
@@ -9,21 +10,6 @@ const CHAPTER_BG: Record<number, string> = {
   3: "/assets/backgrounds/bg-mirror.png",
   4: "/assets/backgrounds/bg-shadow.png",
   5: "/assets/backgrounds/bg-temple.png",
-};
-
-const HERO_PORTRAITS: Record<string, string> = {
-  "zero-void": "/assets/characters/mr0-zero.png",
-  "one-thunder": "/assets/characters/mr1-thunder.png",
-  "two-crystal": "/assets/characters/ms2-crystal.png",
-  "three-bloom": "/assets/characters/ms3-creative.png",
-  "four-aegis": "/assets/characters/mr4-wellness.png",
-  "aria-flameblade": "/assets/characters/aria-flame.png",
-  "luna-tideweaver": "/assets/characters/luna-tide.png",
-  "kael-stoneguard": "/assets/characters/kael-stone.png",
-  "nyx-shadowstep": "/assets/characters/nyx-shadow.png",
-  "sol-lightbringer": "/assets/characters/sol-dawn.png",
-  "frost-whisper": "/assets/characters/frost-whisper.png",
-  "ember-phoenix": "/assets/characters/ember-phoenix.png",
 };
 
 function makeEnemyTemplate(enemyId: string, chapter: number, stage: number): HeroTemplate {
@@ -35,10 +21,8 @@ function makeEnemyTemplate(enemyId: string, chapter: number, stage: number): Her
   return {
     id: enemyId,
     name: isBoss ? enemyId.replace("boss-", "").replace(/-/g, " ") : enemyId.replace(/-/g, " "),
-    title: isBoss ? "Boss" : "Monster",
-    rarity: isBoss ? "epic" : "common",
-    element: elements[hash % elements.length],
-    heroClass: classes[hash % classes.length],
+    title: isBoss ? "Boss" : "Monster", rarity: isBoss ? "epic" : "common",
+    element: elements[hash % elements.length], heroClass: classes[hash % classes.length],
     baseStats: { hp: stats.hp, atk: stats.atk, def: stats.def, spd: 80 + (hash % 30), critRate: isBoss ? 0.15 : 0.05, critDmg: isBoss ? 1.8 : 1.5 },
     growthPerLevel: { hp: 0, atk: 0, def: 0, spd: 0, critRate: 0, critDmg: 0 },
     skills: isBoss ? [{ id: `${enemyId}-skill`, name: "Boss Rage", description: "", cooldown: 5, damageMultiplier: 2.0, targetType: "aoe" as const }] : [],
@@ -50,23 +34,29 @@ export interface BattleCallbacks {
   onEnd: (result: "won" | "lost", gold: number, exp: number, crystals: number) => void;
 }
 
-interface UnitUI {
+interface UnitHandle {
   unit: BattleUnit;
-  el: HTMLElement;
+  animator: SpriteAnimator;
   hpFill: HTMLElement;
+  hpText: HTMLElement;
   isHero: boolean;
 }
 
 export class Battle2D {
   private container: HTMLElement;
   private battleState: BattleState | null = null;
-  private heroUnits: UnitUI[] = [];
-  private enemyUnits: UnitUI[] = [];
+  private heroes: UnitHandle[] = [];
+  private enemies: UnitHandle[] = [];
   private callbacks: BattleCallbacks;
   private speed = 1;
   private turnTimer = 0;
   private stageConfig: typeof STAGES[0] | null = null;
   private active = false;
+  private actionQueue: Array<() => Promise<void>> = [];
+  private processing = false;
+  private fieldEl: HTMLElement | null = null;
+  private width = 960;
+  private height = 540;
 
   constructor(container: HTMLElement, callbacks: BattleCallbacks) {
     this.container = container;
@@ -83,92 +73,90 @@ export class Battle2D {
     this.container.style.cssText = "width:100%; height:100%; position:relative; overflow:hidden; font-family:'Segoe UI',sans-serif;";
 
     const bgUrl = CHAPTER_BG[chapter] ?? CHAPTER_BG[1];
-    const bg = document.createElement("div");
-    bg.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; background:url('${bgUrl}') center/cover no-repeat, linear-gradient(180deg, #1a2a3a, #0a1a0a); z-index:0;`;
-    this.container.appendChild(bg);
+    this.container.innerHTML = `<div style="position:absolute; top:0; left:0; width:100%; height:100%; background:url('${bgUrl}') center/cover no-repeat, linear-gradient(180deg, #1a2a3a, #0a1a0a); z-index:0;"></div>`;
 
-    const field = document.createElement("div");
-    field.style.cssText = "position:absolute; top:10%; left:0; width:100%; height:60%; z-index:2; display:flex; justify-content:space-around; align-items:center; padding:0 10%;";
+    this.fieldEl = document.createElement("div");
+    this.fieldEl.style.cssText = "position:absolute; top:0; left:0; width:100%; height:100%; z-index:2;";
+    this.container.appendChild(this.fieldEl);
 
-    const heroSide = document.createElement("div");
-    heroSide.id = "hero-side";
-    heroSide.style.cssText = "display:flex; flex-direction:column; gap:12px; align-items:center;";
-    this.heroUnits = this.battleState.heroes.map((u) => this.createUnitEl(u, true, heroSide));
+    const rect = this.container.getBoundingClientRect();
+    this.width = rect.width || 960;
+    this.height = rect.height || 540;
 
-    const enemySide = document.createElement("div");
-    enemySide.id = "enemy-side";
-    enemySide.style.cssText = "display:flex; flex-direction:column; gap:12px; align-items:center;";
-    this.enemyUnits = this.battleState.enemies.map((u) => this.createUnitEl(u, false, enemySide));
-
-    field.appendChild(heroSide);
-    field.appendChild(enemySide);
-    this.container.appendChild(field);
+    this.heroes = this.battleState.heroes.map((u, i) => this.createUnit(u, true, i));
+    this.enemies = this.battleState.enemies.map((u, i) => this.createUnit(u, false, i));
 
     this.addHUD();
     this.turnTimer = 0;
     this.active = true;
+    this.actionQueue = [];
+    this.processing = false;
   }
 
-  private createUnitEl(unit: BattleUnit, isHero: boolean, parent: HTMLElement): UnitUI {
-    const el = document.createElement("div");
-    el.style.cssText = "display:flex; flex-direction:column; align-items:center; gap:4px; transition:transform 0.2s; position:relative;";
+  private createUnit(unit: BattleUnit, isHero: boolean, index: number): UnitHandle {
+    const formation = isHero ? FORMATION_HERO : FORMATION_ENEMY;
+    const pos = formation[index % formation.length];
+    const x = pos.x * this.width;
+    const y = pos.y * this.height;
 
-    const portraitUrl = HERO_PORTRAITS[unit.template.id] ?? "";
-    const borderColor = isHero ? "#ffd700" : "#ff4444";
+    const animator = new SpriteAnimator({
+      container: this.fieldEl!,
+      heroId: unit.template.id,
+      x, y,
+      facingRight: isHero,
+      size: isHero ? 96 : 80,
+      borderColor: isHero ? "#ffd700" : "#ff4444",
+    });
 
-    if (portraitUrl) {
-      const img = document.createElement("img");
-      img.src = portraitUrl;
-      img.style.cssText = `width:80px; height:80px; object-fit:contain; border-radius:10px; border:2px solid ${borderColor}; background:rgba(10,5,20,0.7); animation:unit-idle 2s ease-in-out infinite;`;
-      if (!isHero) img.style.transform = "scaleX(-1)";
-      el.appendChild(img);
-    } else {
-      const placeholder = document.createElement("div");
-      placeholder.style.cssText = `width:80px; height:80px; border-radius:10px; border:2px solid ${borderColor}; background:#${unit.template.modelColor.toString(16).padStart(6, "0")}; display:flex; align-items:center; justify-content:center; font-size:28px; animation:unit-idle 2s ease-in-out infinite;`;
-      const elEmoji: Record<string, string> = { fire: "🔥", water: "💧", earth: "🌿", light: "⚡", dark: "🌑" };
-      placeholder.textContent = elEmoji[unit.template.element] ?? "⚔️";
-      el.appendChild(placeholder);
-    }
+    const hpContainer = document.createElement("div");
+    hpContainer.style.cssText = `position:absolute; left:${x - 35}px; top:${y + 50}px; width:70px; z-index:6; text-align:center;`;
 
-    const name = document.createElement("div");
-    name.style.cssText = "font-size:11px; color:#fff; text-shadow:0 1px 3px #000; font-weight:bold;";
-    name.textContent = unit.name;
-    el.appendChild(name);
+    const nameTag = document.createElement("div");
+    nameTag.style.cssText = "font-size:10px; color:#fff; text-shadow:0 1px 3px #000; font-weight:bold; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;";
+    nameTag.textContent = unit.name;
+    hpContainer.appendChild(nameTag);
 
     const hpBar = document.createElement("div");
-    hpBar.style.cssText = "width:70px; height:7px; background:#1a1a2e; border-radius:4px; overflow:hidden; border:1px solid #333;";
+    hpBar.style.cssText = "width:70px; height:6px; background:#1a1a2e; border-radius:3px; overflow:hidden; border:1px solid #444;";
     const hpFill = document.createElement("div");
-    hpFill.style.cssText = `width:100%; height:100%; background:${isHero ? "#44cc44" : "#cc4444"}; border-radius:4px; transition:width 0.3s;`;
+    hpFill.style.cssText = `width:100%; height:100%; background:${isHero ? "#44cc44" : "#cc4444"}; border-radius:3px; transition:width 0.3s;`;
     hpBar.appendChild(hpFill);
-    el.appendChild(hpBar);
+    hpContainer.appendChild(hpBar);
 
-    parent.appendChild(el);
-    return { unit, el, hpFill, isHero };
+    const hpText = document.createElement("div");
+    hpText.style.cssText = "font-size:9px; color:#aaa; margin-top:1px;";
+    hpText.textContent = `${unit.currentHp}/${unit.maxHp}`;
+    hpContainer.appendChild(hpText);
+
+    this.fieldEl!.appendChild(hpContainer);
+
+    return { unit, animator, hpFill, hpText, isHero };
   }
 
   private addHUD(): void {
     if (!this.stageConfig || !this.battleState) return;
 
     const top = document.createElement("div");
-    top.style.cssText = "position:absolute; top:0; left:0; width:100%; padding:10px 20px; z-index:5; display:flex; justify-content:space-between; background:linear-gradient(180deg, rgba(10,5,30,0.9), transparent);";
+    top.style.cssText = "position:absolute; top:0; left:0; width:100%; padding:10px 20px; z-index:10; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(180deg, rgba(10,5,30,0.85), transparent);";
     top.innerHTML = `
-      <div style="color:#ffd700; font-size:15px; font-weight:bold;">Ch.${this.stageConfig.chapter} Stage ${this.stageConfig.stage}</div>
-      <div id="wave-info" style="color:#aaa; font-size:13px;">Wave ${this.battleState.wave}/3</div>
+      <div style="color:#ffd700; font-size:15px; font-weight:bold; text-shadow:0 2px 4px rgba(0,0,0,0.5);">Ch.${this.stageConfig.chapter} — Stage ${this.stageConfig.stage}</div>
+      <div id="wave-info" style="color:#ddd; font-size:13px; text-shadow:0 1px 3px rgba(0,0,0,0.5);">Wave ${this.battleState.wave}/3</div>
     `;
     this.container.appendChild(top);
 
     const bottom = document.createElement("div");
-    bottom.style.cssText = "position:absolute; bottom:0; left:0; width:100%; padding:12px; z-index:5; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(10,5,30,0.9), transparent);";
+    bottom.style.cssText = "position:absolute; bottom:0; left:0; width:100%; padding:12px; z-index:10; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(10,5,30,0.85), transparent);";
     for (const spd of [1, 2, 4]) {
       const btn = document.createElement("button");
-      btn.style.cssText = `padding:6px 18px; font-size:13px; font-weight:bold; border-radius:6px; cursor:pointer; background:${this.speed === spd ? "rgba(255,215,0,0.2)" : "rgba(20,10,40,0.8)"}; border:1px solid ${this.speed === spd ? "#ffd700" : "#444"}; color:${this.speed === spd ? "#ffd700" : "#888"};`;
+      const active = this.speed === spd;
+      btn.style.cssText = `padding:8px 20px; font-size:13px; font-weight:bold; border-radius:6px; cursor:pointer; background:${active ? "rgba(255,215,0,0.2)" : "rgba(20,10,40,0.8)"}; border:1px solid ${active ? "#ffd700" : "#555"}; color:${active ? "#ffd700" : "#999"}; transition:all 0.15s;`;
       btn.textContent = `${spd}×`;
       btn.addEventListener("click", () => { this.speed = spd; });
       bottom.appendChild(btn);
     }
     const autoBtn = document.createElement("button");
-    autoBtn.style.cssText = "padding:6px 18px; font-size:13px; border-radius:6px; cursor:pointer; background:rgba(68,204,68,0.2); border:1px solid #4c4; color:#4c4; font-weight:bold;";
-    autoBtn.textContent = "AUTO";
+    autoBtn.style.cssText = "padding:8px 20px; font-size:13px; border-radius:6px; cursor:pointer; background:rgba(68,204,68,0.15); border:1px solid #4c4; color:#4c4; font-weight:bold;";
+    autoBtn.textContent = "AUTO ▶";
     bottom.appendChild(autoBtn);
     this.container.appendChild(bottom);
   }
@@ -177,65 +165,124 @@ export class Battle2D {
 
   update(dt: number): void {
     if (!this.active || !this.battleState) return;
-    if (this.battleState.status === "fighting") {
+
+    for (const h of [...this.heroes, ...this.enemies]) h.animator.update(dt);
+
+    if (this.battleState.status === "fighting" && !this.processing) {
       this.turnTimer += dt * this.speed;
       if (this.turnTimer >= COMBAT.turnIntervalMs / 1000) {
         this.turnTimer -= COMBAT.turnIntervalMs / 1000;
         const action = executeTurn(this.battleState);
-        if (action) this.playAction(action);
-        const wi = this.container.querySelector("#wave-info");
-        if (wi) wi.textContent = `Wave ${this.battleState.wave}/3`;
+        if (action) this.queueAction(action);
+        this.updateWaveInfo();
         this.checkEnd();
       }
     }
+
     if (this.battleState.status === "wave_clear" && this.stageConfig) {
+      for (const e of this.enemies) e.animator.destroy();
       const enemies = this.stageConfig.enemies.map((id) => makeEnemyTemplate(id, this.stageConfig!.chapter, this.stageConfig!.stage));
       spawnNextWave(this.battleState, enemies, enemies.map(() => 1));
-      const side = this.container.querySelector("#enemy-side");
-      if (side) { side.innerHTML = ""; this.enemyUnits = this.battleState.enemies.map((u) => this.createUnitEl(u, false, side as HTMLElement)); }
+      this.enemies = this.battleState.enemies.map((u, i) => this.createUnit(u, false, i));
+      this.updateWaveInfo();
     }
   }
 
-  private playAction(action: any): void {
-    const aUI = this.findUI(action.attacker);
-    if (aUI) {
-      aUI.el.style.transform = aUI.isHero ? "translateX(40px) scale(1.15)" : "translateX(-40px) scale(1.15)";
-      setTimeout(() => { aUI.el.style.transform = ""; }, 350);
-    }
-    const hit = (ui: UnitUI | undefined, damage: number, isCrit: boolean) => {
-      if (!ui) return;
-      const ratio = Math.max(0, ui.unit.currentHp / ui.unit.maxHp);
-      ui.hpFill.style.width = `${ratio * 100}%`;
-      ui.hpFill.style.background = ratio > 0.5 ? (ui.isHero ? "#44cc44" : "#cc4444") : ratio > 0.25 ? "#ccaa00" : "#cc3333";
-      ui.el.style.transform = "translateX(-6px)";
-      const firstChild = ui.el.firstElementChild as HTMLElement;
-      if (firstChild) firstChild.style.filter = "brightness(2)";
-      setTimeout(() => { ui.el.style.transform = ""; if (firstChild) firstChild.style.filter = ""; }, 200);
-      this.showDmg(ui.el, damage, isCrit);
-      if (!ui.unit.alive) { ui.el.style.opacity = "0.3"; ui.el.style.transform = "scale(0.8)"; if (firstChild) firstChild.style.filter = "grayscale(1)"; }
-    };
-    if (action.isAoe && action.aoeTargets) { for (const a of action.aoeTargets) hit(this.findUI(a.target), a.damage, a.isCrit); }
-    else hit(this.findUI(action.target), action.damage, action.isCrit);
+  private queueAction(action: any): void {
+    this.actionQueue.push(() => this.executeAction(action));
+    if (!this.processing) this.processQueue();
   }
 
-  private showDmg(parent: HTMLElement, dmg: number, crit: boolean): void {
+  private async processQueue(): Promise<void> {
+    this.processing = true;
+    while (this.actionQueue.length > 0) {
+      const next = this.actionQueue.shift()!;
+      await next();
+    }
+    this.processing = false;
+  }
+
+  private executeAction(action: any): Promise<void> {
+    return new Promise((resolve) => {
+      const attackerH = this.findHandle(action.attacker);
+      if (!attackerH) { resolve(); return; }
+
+      const targets = action.isAoe && action.aoeTargets
+        ? action.aoeTargets.map((a: any) => ({ handle: this.findHandle(a.target), damage: a.damage, isCrit: a.isCrit, target: a.target }))
+        : [{ handle: this.findHandle(action.target), damage: action.damage, isCrit: action.isCrit, target: action.target }];
+
+      const mainTarget = targets[0]?.handle;
+      if (!mainTarget) { resolve(); return; }
+
+      const targetPos = mainTarget.animator.getPosition();
+      attackerH.animator.playAttack(targetPos.x, targetPos.y, () => {
+        for (const t of targets) {
+          if (!t.handle) continue;
+          t.handle.animator.playHit();
+          this.updateHp(t.handle);
+          this.showDamageNumber(t.handle, t.damage, t.isCrit);
+          if (!t.target.alive) t.handle.animator.playDeath();
+        }
+      });
+
+      setTimeout(resolve, 800 / this.speed);
+    });
+  }
+
+  private updateHp(handle: UnitHandle): void {
+    const ratio = Math.max(0, handle.unit.currentHp / handle.unit.maxHp);
+    handle.hpFill.style.width = `${ratio * 100}%`;
+    handle.hpFill.style.background = ratio > 0.5 ? (handle.isHero ? "#44cc44" : "#cc4444") : ratio > 0.25 ? "#ccaa00" : "#cc3333";
+    handle.hpText.textContent = `${Math.max(0, handle.unit.currentHp)}/${handle.unit.maxHp}`;
+  }
+
+  private showDamageNumber(handle: UnitHandle, damage: number, isCrit: boolean): void {
+    const pos = handle.animator.getPosition();
     const el = document.createElement("div");
-    el.style.cssText = `position:absolute; top:-10px; left:50%; font-size:${crit ? "22px" : "16px"}; font-weight:bold; color:${crit ? "#ffd700" : "#ff4444"}; text-shadow:0 0 6px ${crit ? "rgba(255,215,0,0.8)" : "rgba(255,0,0,0.5)"}; pointer-events:none; z-index:20; animation:dmg-float 0.8s ease-out forwards;`;
-    el.textContent = crit ? `${dmg}!` : `-${dmg}`;
-    parent.appendChild(el);
-    setTimeout(() => el.remove(), 900);
+    el.style.cssText = `
+      position:absolute; left:${pos.x}px; top:${pos.y - 60}px; z-index:20;
+      font-size:${isCrit ? "28px" : "20px"}; font-weight:bold;
+      color:${isCrit ? "#ffd700" : "#ff4444"};
+      text-shadow:0 0 8px ${isCrit ? "rgba(255,215,0,0.8)" : "rgba(255,0,0,0.5)"}, 0 2px 4px rgba(0,0,0,0.8);
+      pointer-events:none;
+      animation:dmg-fly 1s ease-out forwards;
+      transform:translateX(-50%);
+    `;
+    el.textContent = isCrit ? `💥${damage}` : `-${damage}`;
+    this.fieldEl?.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
   }
 
-  private findUI(unit: BattleUnit): UnitUI | undefined {
-    return this.heroUnits.find((u) => u.unit.id === unit.id) ?? this.enemyUnits.find((u) => u.unit.id === unit.id);
+  private findHandle(unit: BattleUnit): UnitHandle | undefined {
+    return this.heroes.find((h) => h.unit.id === unit.id) ?? this.enemies.find((h) => h.unit.id === unit.id);
+  }
+
+  private updateWaveInfo(): void {
+    if (!this.battleState) return;
+    const el = this.container.querySelector("#wave-info");
+    if (el) el.textContent = `Wave ${this.battleState.wave}/3`;
   }
 
   private checkEnd(): void {
     if (!this.battleState || !this.stageConfig) return;
     const s = this.battleState.status as string;
-    if (s === "won") { this.active = false; const r = this.stageConfig.rewards; setTimeout(() => this.callbacks.onEnd("won", r.gold, r.exp, r.crystals), 1200); }
-    else if (s === "lost") { this.active = false; setTimeout(() => this.callbacks.onEnd("lost", 0, 0, 0), 1200); }
+    if (s === "won") {
+      this.active = false;
+      for (const h of this.heroes) if (h.unit.alive) h.animator.playVictory();
+      const r = this.stageConfig.rewards;
+      setTimeout(() => this.callbacks.onEnd("won", r.gold, r.exp, r.crystals), 1500);
+    } else if (s === "lost") {
+      this.active = false;
+      setTimeout(() => this.callbacks.onEnd("lost", 0, 0, 0), 1500);
+    }
   }
 
-  destroy(): void { this.active = false; this.battleState = null; this.heroUnits = []; this.enemyUnits = []; }
+  destroy(): void {
+    this.active = false;
+    for (const h of [...this.heroes, ...this.enemies]) h.animator.destroy();
+    this.heroes = [];
+    this.enemies = [];
+    this.battleState = null;
+    this.actionQueue = [];
+  }
 }

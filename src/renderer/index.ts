@@ -33,5 +33,10 @@ style.textContent = `
     0% { opacity: 1; transform: translateX(-50%) translateY(0); }
     100% { opacity: 0; transform: translateX(-50%) translateY(-30px); }
   }
+  @keyframes dmg-fly {
+    0% { opacity: 1; transform: translateX(-50%) translateY(0) scale(0.5); }
+    20% { opacity: 1; transform: translateX(-50%) translateY(-20px) scale(1.2); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-60px) scale(0.8); }
+  }
 `;
 document.head.appendChild(style);
