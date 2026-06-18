@@ -206,6 +206,7 @@ export class Game {
     btnRow.appendChild(pullOne);
     btnRow.appendChild(pullTen);
     screen.appendChild(btnRow);
+    this.container.appendChild(screen);
   }
 
   private doSummon(count: number, results: HTMLElement, info: HTMLElement): void {
@@ -299,6 +300,7 @@ export class Game {
     }
 
     screen.appendChild(grid);
+    this.container.appendChild(screen);
   }
 
   private showShop(): void {
@@ -362,6 +364,7 @@ export class Game {
     }
 
     screen.appendChild(grid);
+    this.container.appendChild(screen);
   }
 
   private makeScreen(title: string): HTMLElement {
