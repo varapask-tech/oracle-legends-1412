@@ -306,6 +306,7 @@ export class Game {
         e.stopPropagation();
         if (this.gsm.spendGold(cost)) {
           this.gsm.addExpToHero(hero.instanceId, 9999);
+          this.trackLevelUp();
           this.showHeroes();
         }
       });
@@ -371,6 +372,7 @@ export class Game {
       buyBtn.disabled = !canBuy;
       buyBtn.addEventListener("click", () => {
         if (this.gsm.spendGold(item.cost)) {
+          this.trackShopBuy();
           buyBtn.textContent = "✅ Purchased!";
           buyBtn.disabled = true;
           goldDisplay.innerHTML = `<span style="color:#ffd700; font-size:18px">💰 ${this.gsm.current.gold} Gold</span>`;
