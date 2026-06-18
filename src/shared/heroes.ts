@@ -1,4 +1,16 @@
-import type { HeroTemplate } from "./types";
+import type { HeroTemplate, Rarity } from "./types";
+
+export function getHeroesByRarity(rarity: Rarity): HeroTemplate[] {
+  return HERO_TEMPLATES.filter((h) => h.rarity === rarity);
+}
+
+export function getHeroById(id: string): HeroTemplate | undefined {
+  return HERO_TEMPLATES.find((h) => h.id === id);
+}
+
+export function getHeroesByElement(element: string): HeroTemplate[] {
+  return HERO_TEMPLATES.filter((h) => h.element === element);
+}
 
 export const HERO_TEMPLATES: HeroTemplate[] = [
   {

@@ -21,7 +21,7 @@ export class AudioManager {
   private bgmOsc: OscillatorNode | null = null;
   private bgmLfo: OscillatorNode | null = null;
 
-  private _masterVolume = ZEN.ambience.volumeDefault;
+  private _masterVolume: number = ZEN.ambience.volumeDefault;
   private _bgmVolume = 0.5;
   private _sfxVolume = 0.7;
   private _muted = false;
