@@ -3,8 +3,11 @@ import { HERO_TEMPLATES } from "../shared/heroes";
 import { STAGES } from "../shared/stages";
 import { GameStateManager, createInitialState } from "./systems/game-state";
 import { Battle2D } from "./battle";
+import { DailyMissionManager } from "../systems/daily-missions";
+import { DailyScreen } from "./ui/daily-screen";
+import { BattleVFX } from "./battle-vfx";
 
-type Screen = "menu" | "battle" | "heroes" | "summon" | "shop" | "rewards";
+type Screen = "menu" | "battle" | "heroes" | "summon" | "shop" | "rewards" | "daily";
 
 const PORTRAITS: Record<string, string> = {
   "zero-void": "/assets/characters/mr0-zero.png",
@@ -40,9 +43,13 @@ export class Game {
   private animFrameId = 0;
   private lastTime = 0;
 
+  private dailyMgr: DailyMissionManager;
+
   constructor(container: HTMLElement) {
     this.container = container;
     this.gsm = new GameStateManager(createInitialState());
+    this.dailyMgr = new DailyMissionManager();
+    BattleVFX.injectStyles();
   }
 
   start(): void {
@@ -79,11 +86,15 @@ export class Game {
       </div>
     `;
 
+    const unclaimedDaily = this.dailyMgr.missions.filter((m) => m.completed && !m.claimed).length;
+    const dailyBadge = unclaimedDaily > 0 ? ` (${unclaimedDaily}!)` : "";
+
     const buttons = [
       { label: "⚔️ Battle", desc: "Fight enemies, earn rewards", action: () => this.startBattle() },
       { label: "🎰 Summon", desc: `💎${10} per pull`, action: () => this.showSummon() },
       { label: "🦸 Heroes", desc: `${state.heroes.length} heroes`, action: () => this.showHeroes() },
       { label: "🏪 Shop", desc: "Buy equipment", action: () => this.showShop() },
+      { label: `📋 Quests${dailyBadge}`, desc: `${this.dailyMgr.completedCount}/9 done`, action: () => this.showDaily() },
     ];
 
     const grid = document.createElement("div");
@@ -119,6 +130,9 @@ export class Game {
           this.gsm.addGold(gold);
           this.gsm.addCrystals(crystals);
           this.gsm.addExpToTeam(exp);
+          this.trackBattleWin();
+          this.trackGoldEarned(gold);
+          this.trackExpEarned(exp);
           const idx = STAGES.findIndex((s) => s.id === this.gsm.current.currentStage);
           if (idx < STAGES.length - 1) this.gsm.advanceStage(STAGES[idx + 1].id);
         }
@@ -211,10 +225,12 @@ export class Game {
 
     const pullOne = this.makeBtn("Pull ×1 (💎10)", "#aa88ff", () => {
       if (!this.gsm.spendCrystals(10)) return;
+      this.trackSummon();
       this.doSummon(1, results, info);
     });
     const pullTen = this.makeBtn("Pull ×10 (💎90)", "#ffd700", () => {
       if (!this.gsm.spendCrystals(90)) return;
+      this.trackSummon();
       this.doSummon(10, results, info);
     });
 
@@ -306,6 +322,7 @@ export class Game {
         e.stopPropagation();
         if (this.gsm.spendGold(cost)) {
           this.gsm.addExpToHero(hero.instanceId, 9999);
+          this.trackLevelUp();
           this.showHeroes();
         }
       });
@@ -371,6 +388,7 @@ export class Game {
       buyBtn.disabled = !canBuy;
       buyBtn.addEventListener("click", () => {
         if (this.gsm.spendGold(item.cost)) {
+          this.trackShopBuy();
           buyBtn.textContent = "✅ Purchased!";
           buyBtn.disabled = true;
           goldDisplay.innerHTML = `<span style="color:#ffd700; font-size:18px">💰 ${this.gsm.current.gold} Gold</span>`;
@@ -424,6 +442,26 @@ export class Game {
     btn.addEventListener("mouseleave", () => { btn.style.transform = ""; });
     return btn;
   }
+
+  private showDaily(): void {
+    this.clear();
+    this.currentScreen = "daily";
+    new DailyScreen(
+      this.container,
+      (reward) => {
+        if (reward.gold) this.gsm.addGold(reward.gold);
+        if (reward.crystals) this.gsm.addCrystals(reward.crystals);
+      },
+      () => this.showMenu(),
+    );
+  }
+
+  private trackBattleWin() { this.dailyMgr.trackProgress("battle-3"); this.dailyMgr.trackProgress("battle-10"); }
+  private trackSummon() { this.dailyMgr.trackProgress("summon-1"); }
+  private trackLevelUp() { this.dailyMgr.trackProgress("levelup-1"); }
+  private trackShopBuy() { this.dailyMgr.trackProgress("shop-1"); }
+  private trackGoldEarned(amount: number) { this.dailyMgr.trackProgress("gold-1000", amount); }
+  private trackExpEarned(amount: number) { this.dailyMgr.trackProgress("exp-500", amount); }
 
   destroy(): void {
     this.clear();
