@@ -2,7 +2,7 @@ import type { GameState, HeroInstance } from "../../shared/types";
 import { GOLD, CRYSTALS, EXP } from "../../shared/balance";
 import { HERO_TEMPLATES } from "../../shared/heroes";
 
-const INITIAL_HERO_IDS = ["sol-lightbringer"];
+const INITIAL_HERO_IDS = ["zero-void", "one-thunder", "two-crystal"];
 
 function createStarterHeroes(): HeroInstance[] {
   return INITIAL_HERO_IDS.map((templateId) => ({

@@ -11,7 +11,7 @@ export type ActionResult =
   | { ok: true }
   | { ok: false; reason: string };
 
-const STARTER_HEROES = ["sol-lightbringer", "aria-flameblade", "luna-tideweaver"];
+const STARTER_HEROES = ["zero-void", "one-thunder", "two-crystal"];
 
 function makeInstance(templateId: string): HeroInstance {
   return {
