@@ -18,6 +18,12 @@ export interface ExplosionResult {
 
 const BOMB_FUSE = 2.5;
 
+let bombSprite: HTMLImageElement | null = null;
+let spriteReady = false;
+const bImg = new Image();
+bImg.onload = () => { bombSprite = bImg; spriteReady = true; };
+bImg.src = "/assets/sprites/bomb-sprite.png";
+
 export class BombManager {
   private bombs: BombInstance[] = [];
   private explosions: Array<{ x: number; y: number; timer: number; cells: Array<{ x: number; y: number }> }> = [];
@@ -93,29 +99,24 @@ export class BombManager {
 
   render(ctx: CanvasRenderingContext2D): void {
     for (const bomb of this.bombs) {
-      const px = bomb.x * TILE_SIZE + TILE_SIZE / 2;
-      const py = bomb.y * TILE_SIZE + TILE_SIZE / 2;
-      const pulse = 1 + Math.sin(bomb.timer * 8) * 0.15;
-      const urgency = bomb.timer < 1 ? "#ff4444" : bomb.timer < 2 ? "#ffaa00" : "#222222";
+      const px = bomb.x * TILE_SIZE;
+      const py = bomb.y * TILE_SIZE;
+      const pulse = 1 + Math.sin(bomb.timer * 8) * 0.1;
+      const frame = bomb.timer % 0.4 < 0.2 ? 0 : 1;
 
-      ctx.fillStyle = urgency;
-      ctx.beginPath();
-      ctx.arc(px, py, 14 * pulse, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = "#ff6600";
-      ctx.beginPath();
-      ctx.arc(px - 2, py - 14 * pulse, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#ffaa00";
-      ctx.beginPath();
-      ctx.arc(px - 1, py - 14 * pulse - 4, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = "#ffdd00";
-      ctx.beginPath();
-      ctx.arc(px, py, 4, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.save();
+      if (bomb.timer < 1) ctx.filter = "brightness(1.5) saturate(2)";
+      const drawSize = TILE_SIZE * pulse;
+      const offset = (TILE_SIZE - drawSize) / 2;
+      if (spriteReady && bombSprite) {
+        ctx.drawImage(bombSprite, frame * 32, 0, 32, 32, px + offset, py + offset, drawSize, drawSize);
+      } else {
+        ctx.fillStyle = bomb.timer < 1 ? "#ff4444" : "#222";
+        ctx.beginPath();
+        ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 12 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     for (const exp of this.explosions) {
