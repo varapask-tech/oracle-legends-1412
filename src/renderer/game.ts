@@ -392,7 +392,6 @@ export class Game {
       { label: "🎰 Summon", action: () => this.showSummon() },
       { label: "🏪 Shop", action: () => this.showShop() },
       { label: `📋 Quests${dailyBadge}`, action: () => this.showDaily() },
-      { label: "⚔️ Battle", action: () => this.startBattle() },
     ];
 
     const row = document.createElement("div");
