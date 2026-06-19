@@ -9,6 +9,13 @@ const TD_SPRITE_MAP: Record<string, string> = {
   "two-crystal": "td-ms2-crystal.png",
   "three-bloom": "td-ms3-creative.png",
   "four-aegis": "td-mr4-wellness.png",
+  "aria-flameblade": "td-aria-flame.png",
+  "luna-tideweaver": "td-luna-tide.png",
+  "kael-stoneguard": "td-kael-stone.png",
+  "nyx-shadowstep": "td-nyx-shadow.png",
+  "sol-lightbringer": "td-sol-dawn.png",
+  "frost-whisper": "td-frost-whisper.png",
+  "ember-phoenix": "td-ember-phoenix.png",
 };
 
 type Direction = "up" | "down" | "left" | "right";
