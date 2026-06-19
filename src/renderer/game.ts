@@ -3,6 +3,9 @@ import { HERO_TEMPLATES } from "../shared/heroes";
 import { STAGES } from "../shared/stages";
 import { GameStateManager, createInitialState } from "../systems/game-state";
 import { Battle2D } from "./battle";
+import { GridMap } from "./grid-map";
+import { BombManager } from "./bomb";
+import { HeroAgent } from "./hero-agent";
 import { DailyMissionManager } from "../systems/daily-missions";
 import { DailyScreen } from "./ui/daily-screen";
 import { BattleVFX } from "./battle-vfx";
@@ -47,6 +50,9 @@ export class Game {
   private dailyMgr: DailyMissionManager;
   private saveMgr: SaveManager | null = null;
   private offlineRewards: OfflineRewards | null = null;
+  private gridMap: GridMap | null = null;
+  private bombMgr: BombManager | null = null;
+  private heroAgents: HeroAgent[] = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -102,7 +108,133 @@ export class Game {
   private clear(): void {
     this.container.innerHTML = "";
     if (this.battle) { this.battle.destroy(); this.battle = null; }
+    for (const agent of this.heroAgents) agent.destroy();
+    this.heroAgents = [];
+    this.gridMap = null;
+    this.bombMgr = null;
     cancelAnimationFrame(this.animFrameId);
+  }
+
+  private startTreasureHunt(): void {
+    this.clear();
+    this.currentScreen = "battle";
+
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "width:100%; height:100%; position:relative; background:#1a2a1a; display:flex; flex-direction:column; align-items:center; justify-content:center;";
+    this.container.appendChild(wrapper);
+
+    const hud = document.createElement("div");
+    hud.style.cssText = "position:absolute; top:0; left:0; width:100%; padding:10px 20px; z-index:20; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(180deg, rgba(10,5,30,0.9), transparent);";
+    hud.innerHTML = `
+      <div style="color:#ffd700; font-size:15px; font-weight:bold;">💣 Treasure Hunt</div>
+      <div style="display:flex; gap:16px; font-size:13px;">
+        <span style="color:#ffd700">💰 ${this.gsm.current.gold}</span>
+        <span style="color:#aa88ff">💎 ${this.gsm.current.crystals}</span>
+      </div>
+    `;
+    wrapper.appendChild(hud);
+
+    this.gridMap = new GridMap();
+    this.gridMap.generate(1);
+    this.gridMap.render();
+
+    const mapContainer = document.createElement("div");
+    mapContainer.style.cssText = "position:relative; display:inline-block;";
+    mapContainer.appendChild(this.gridMap.element);
+    wrapper.appendChild(mapContainer);
+
+    this.bombMgr = new BombManager(this.gridMap);
+
+    const bombCanvas = document.createElement("canvas");
+    bombCanvas.width = this.gridMap.width;
+    bombCanvas.height = this.gridMap.height;
+    bombCanvas.style.cssText = "position:absolute; top:0; left:0; pointer-events:none; z-index:8;";
+    mapContainer.appendChild(bombCanvas);
+    const bombCtx = bombCanvas.getContext("2d")!;
+
+    this.bombMgr.onExplosion = (result) => {
+      let goldGained = 0;
+      for (const t of result.tiles) {
+        if (t.was === "chest") {
+          goldGained += 20 + Math.floor(Math.random() * 30);
+          this.gsm.addCrystals(Math.random() < 0.3 ? 1 : 0);
+        } else if (t.was === "block") {
+          goldGained += 2 + Math.floor(Math.random() * 5);
+        }
+      }
+      if (goldGained > 0) {
+        this.gsm.addGold(goldGained);
+        const goldLabel = document.createElement("div");
+        goldLabel.style.cssText = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:bold; color:#ffd700; text-shadow:0 0 8px rgba(255,215,0,0.8); pointer-events:none; z-index:30; animation:dmg-fly 1s ease-out forwards;";
+        goldLabel.textContent = `+${goldGained} 💰`;
+        mapContainer.appendChild(goldLabel);
+        setTimeout(() => goldLabel.remove(), 1100);
+      }
+      this.gridMap?.render();
+      hud.querySelector("span")!.textContent = `💰 ${this.gsm.current.gold}`;
+    };
+
+    const team = this.gsm.current.team;
+    const spawnPositions = [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1]];
+    for (let i = 0; i < Math.min(team.length, 5); i++) {
+      const inst = this.gsm.findHero(team[i]);
+      if (!inst) continue;
+      const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
+      if (!tmpl) continue;
+      const [sx, sy] = spawnPositions[i];
+      const agent = new HeroAgent({
+        id: inst.instanceId,
+        template: tmpl,
+        startX: sx,
+        startY: sy,
+        container: mapContainer,
+        map: this.gridMap,
+        bombs: this.bombMgr,
+      });
+      this.heroAgents.push(agent);
+    }
+
+    const bottomBar = document.createElement("div");
+    bottomBar.style.cssText = "position:absolute; bottom:0; left:0; width:100%; padding:12px; z-index:20; display:flex; justify-content:center; gap:12px; background:linear-gradient(0deg, rgba(10,5,30,0.9), transparent);";
+    const menuBtn = this.makeBtn("← Menu", "#666", () => this.showMenu());
+    menuBtn.style.cssText += "padding:6px 20px; font-size:13px;";
+    bottomBar.appendChild(menuBtn);
+
+    const newMapBtn = this.makeBtn("🗺️ New Map", "#ffd700", () => {
+      for (const a of this.heroAgents) a.destroy();
+      this.heroAgents = [];
+      this.gridMap!.generate(1 + Math.floor(Math.random() * 3));
+      this.gridMap!.render();
+      for (let i = 0; i < Math.min(team.length, 5); i++) {
+        const inst = this.gsm.findHero(team[i]);
+        if (!inst) continue;
+        const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
+        if (!tmpl) continue;
+        const [sx, sy] = spawnPositions[i];
+        this.heroAgents.push(new HeroAgent({ id: inst.instanceId, template: tmpl, startX: sx, startY: sy, container: mapContainer, map: this.gridMap!, bombs: this.bombMgr! }));
+      }
+    });
+    newMapBtn.style.cssText += "padding:6px 20px; font-size:13px;";
+    bottomBar.appendChild(newMapBtn);
+    wrapper.appendChild(bottomBar);
+
+    this.lastTime = performance.now();
+    const huntLoop = () => {
+      const now = performance.now();
+      const dt = (now - this.lastTime) / 1000;
+      this.lastTime = now;
+
+      for (const agent of this.heroAgents) agent.update(dt);
+      this.bombMgr!.update(dt);
+
+      bombCtx.clearRect(0, 0, bombCanvas.width, bombCanvas.height);
+      this.bombMgr!.render(bombCtx);
+
+      if (this.currentScreen === "battle") {
+        this.animFrameId = requestAnimationFrame(huntLoop);
+      }
+    };
+    this.animFrameId = requestAnimationFrame(huntLoop);
   }
 
   showMenu(): void {
@@ -133,11 +265,12 @@ export class Game {
     const dailyBadge = unclaimedDaily > 0 ? ` (${unclaimedDaily}!)` : "";
 
     const buttons = [
-      { label: "⚔️ Battle", desc: "Fight enemies, earn rewards", action: () => this.startBattle() },
+      { label: "💣 Treasure Hunt", desc: "Deploy heroes, collect loot!", action: () => this.startTreasureHunt() },
       { label: "🎰 Summon", desc: `💎${10} per pull`, action: () => this.showSummon() },
       { label: "🦸 Heroes", desc: `${state.heroes.length} heroes`, action: () => this.showHeroes() },
       { label: "🏪 Shop", desc: "Buy equipment", action: () => this.showShop() },
       { label: `📋 Quests${dailyBadge}`, desc: `${this.dailyMgr.completedCount}/9 done`, action: () => this.showDaily() },
+      { label: "⚔️ Battle", desc: "Classic auto-battle", action: () => this.startBattle() },
     ];
 
     const grid = document.createElement("div");
