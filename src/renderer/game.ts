@@ -175,9 +175,14 @@ export class Game {
     };
 
     const team = this.gsm.current.team;
-    const spawnPositions = [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1]];
-    for (let i = 0; i < Math.min(team.length, 5); i++) {
-      const inst = this.gsm.findHero(team[i]);
+    const spawnPositions: [number, number][] = [];
+    for (let sy = 1; sy <= 4; sy++) for (let sx = 1; sx <= 4; sx++) {
+      if (sx % 2 === 0 && sy % 2 === 0) continue;
+      spawnPositions.push([sx, sy]);
+    }
+    const allHeroes = this.gsm.current.heroes;
+    for (let i = 0; i < Math.min(allHeroes.length, 15); i++) {
+      const inst = allHeroes[i];
       if (!inst) continue;
       const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
       if (!tmpl) continue;
@@ -205,8 +210,9 @@ export class Game {
       this.heroAgents = [];
       this.gridMap!.generate(1 + Math.floor(Math.random() * 3));
       this.gridMap!.render();
-      for (let i = 0; i < Math.min(team.length, 5); i++) {
-        const inst = this.gsm.findHero(team[i]);
+      const heroes = this.gsm.current.heroes;
+      for (let i = 0; i < Math.min(heroes.length, 15); i++) {
+        const inst = heroes[i];
         if (!inst) continue;
         const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
         if (!tmpl) continue;
