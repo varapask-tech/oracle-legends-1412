@@ -56,6 +56,11 @@ export class Game {
   private bombMgr: BombManager | null = null;
   private heroAgents: HeroAgent[] = [];
   private monsters: MonsterInstance[] = [];
+  private chainCount = 0;
+  private chainTimer = 0;
+  private mapLevel = 1;
+  private mapContainer: HTMLElement | null = null;
+  private mapClearing = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -123,13 +128,14 @@ export class Game {
     this.currentScreen = "battle";
 
     const wrapper = document.createElement("div");
-    wrapper.style.cssText = "width:100%; height:100%; position:relative; background:#1a2a1a; display:flex; flex-direction:column; align-items:center; justify-content:center;";
+    wrapper.style.cssText = "width:100%; height:100%; position:relative; background:#1a2a1a; overflow:hidden;";
     this.container.appendChild(wrapper);
 
     const hud = document.createElement("div");
     hud.style.cssText = "position:absolute; top:0; left:0; width:100%; padding:10px 20px; z-index:20; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(180deg, rgba(10,5,30,0.9), transparent);";
+    this.mapLevel = 1;
     hud.innerHTML = `
-      <div style="color:#ffd700; font-size:15px; font-weight:bold;">💣 Treasure Hunt</div>
+      <div style="color:#ffd700; font-size:15px; font-weight:bold;">💣 Treasure Hunt — Lv.${this.mapLevel}</div>
       <div style="display:flex; gap:16px; font-size:13px;">
         <span style="color:#ffd700">💰 ${this.gsm.current.gold}</span>
         <span style="color:#aa88ff">💎 ${this.gsm.current.crystals}</span>
@@ -142,7 +148,7 @@ export class Game {
     this.gridMap.render();
 
     const mapContainer = document.createElement("div");
-    mapContainer.style.cssText = "position:relative; display:inline-block;";
+    mapContainer.style.cssText = "position:absolute; top:0; left:0; width:100%; height:100%;";
     mapContainer.appendChild(this.gridMap.element);
     wrapper.appendChild(mapContainer);
 
@@ -165,45 +171,27 @@ export class Game {
           goldGained += 2 + Math.floor(Math.random() * 5);
         }
       }
+      if (result.tiles.length > 0) {
+        this.chainCount += result.tiles.length;
+        this.chainTimer = 3;
+        const milestones = [10, 25, 50, 100];
+        for (const m of milestones) {
+          if (this.chainCount >= m && this.chainCount - result.tiles.length < m) {
+            const bonus = m * 2;
+            goldGained += bonus;
+            this.showFloating(mapContainer, `🔥 ${m} Chain! +${bonus}`, "#ff6600", "24px");
+          }
+        }
+      }
       if (goldGained > 0) {
         this.gsm.addGold(goldGained);
-        const goldLabel = document.createElement("div");
-        goldLabel.style.cssText = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:bold; color:#ffd700; text-shadow:0 0 8px rgba(255,215,0,0.8); pointer-events:none; z-index:30; animation:dmg-fly 1s ease-out forwards;";
-        goldLabel.textContent = `+${goldGained} 💰`;
-        mapContainer.appendChild(goldLabel);
-        setTimeout(() => goldLabel.remove(), 1100);
+        this.showFloating(mapContainer, `+${goldGained} 💰`, "#ffd700", "20px");
       }
       this.gridMap?.render();
       hud.querySelector("span")!.textContent = `💰 ${this.gsm.current.gold}`;
     };
 
-    const spawnPositions: [number, number][] = [];
-    for (let sy = 1; sy < MAP_ROWS - 1; sy++) for (let sx = 1; sx < MAP_COLS - 1; sx++) {
-      if (this.gridMap.isWalkable(sx, sy)) spawnPositions.push([sx, sy]);
-    }
-    for (let i = spawnPositions.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [spawnPositions[i], spawnPositions[j]] = [spawnPositions[j], spawnPositions[i]];
-    }
-    const allHeroes = this.gsm.current.heroes;
-    for (let i = 0; i < Math.min(allHeroes.length, 15, spawnPositions.length); i++) {
-      const inst = allHeroes[i];
-      if (!inst) continue;
-      const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
-      if (!tmpl) continue;
-      const [sx, sy] = spawnPositions[i];
-      const agent = new HeroAgent({
-        id: inst.instanceId,
-        template: tmpl,
-        startX: sx,
-        startY: sy,
-        container: mapContainer,
-        map: this.gridMap,
-        bombs: this.bombMgr,
-      });
-      this.heroAgents.push(agent);
-    }
-
+    this.spawnHeroes(mapContainer);
     this.monsters = spawnMonsters(MAP_COLS, MAP_ROWS, 1, (x, y) => this.gridMap!.isWalkable(x, y));
 
     const bottomBar = document.createElement("div");
@@ -213,40 +201,25 @@ export class Game {
     bottomBar.appendChild(menuBtn);
 
     const newMapBtn = this.makeBtn("🗺️ New Map", "#ffd700", () => {
-      for (const a of this.heroAgents) a.destroy();
-      this.heroAgents = [];
-      this.gridMap!.generate(1 + Math.floor(Math.random() * 3));
-      this.gridMap!.render();
-      this.bombMgr = new BombManager(this.gridMap!);
-      this.bombMgr.onExplosion = (result) => {
-        let g = 0;
-        for (const t of result.tiles) g += t.was === "chest" ? 25 : 3;
-        if (g > 0) this.gsm.addGold(g);
-        this.gridMap?.render();
-      };
-      const newSpawns: [number, number][] = [];
-      for (let sy = 1; sy <= 9; sy++) for (let sx = 1; sx <= 3; sx++) {
-        if (this.gridMap!.isWalkable(sx, sy)) newSpawns.push([sx, sy]);
-      }
-      const heroes = this.gsm.current.heroes;
-      for (let i = 0; i < Math.min(heroes.length, 15, newSpawns.length); i++) {
-        const inst = heroes[i];
-        if (!inst) continue;
-        const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
-        if (!tmpl) continue;
-        const [sx, sy] = newSpawns[i];
-        this.heroAgents.push(new HeroAgent({ id: inst.instanceId, template: tmpl, startX: sx, startY: sy, container: mapContainer, map: this.gridMap!, bombs: this.bombMgr! }));
-      }
+      this.mapLevel++;
+      this.advanceMap(mapContainer, hud, bombCanvas, bombCtx);
     });
     newMapBtn.style.cssText += "padding:6px 20px; font-size:13px;";
     bottomBar.appendChild(newMapBtn);
     wrapper.appendChild(bottomBar);
+
+    this.mapContainer = mapContainer;
+    this.chainCount = 0;
+    this.chainTimer = 0;
+    this.mapClearing = false;
 
     this.lastTime = performance.now();
     const huntLoop = () => {
       const now = performance.now();
       const dt = (now - this.lastTime) / 1000;
       this.lastTime = now;
+
+      if (this.chainTimer > 0) { this.chainTimer -= dt; if (this.chainTimer <= 0) this.chainCount = 0; }
 
       for (const agent of this.heroAgents) agent.update(dt);
       for (const m of this.monsters) updateMonster(m, dt, MAP_COLS, MAP_ROWS, (x, y) => this.gridMap!.isWalkable(x, y));
@@ -256,11 +229,84 @@ export class Game {
       this.bombMgr!.render(bombCtx);
       for (const m of this.monsters) if (m.alive) renderMonster(bombCtx, m, TILE_SIZE, 0, 0);
 
+      if (!this.mapClearing && this.gridMap!.countTilesOfType("block") + this.gridMap!.countTilesOfType("chest") === 0) {
+        this.mapClearing = true;
+        this.mapLevel++;
+        this.showFloating(mapContainer, `🗺️ Map Clear! Level ${this.mapLevel}`, "#44ff88", "28px");
+        setTimeout(() => this.advanceMap(mapContainer, hud, bombCanvas, bombCtx), 2000);
+      }
+
       if (this.currentScreen === "battle") {
         this.animFrameId = requestAnimationFrame(huntLoop);
       }
     };
     this.animFrameId = requestAnimationFrame(huntLoop);
+  }
+
+  private advanceMap(container: HTMLElement, hud: HTMLElement, bombCanvas: HTMLCanvasElement, bombCtx: CanvasRenderingContext2D): void {
+    for (const a of this.heroAgents) a.destroy();
+    this.heroAgents = [];
+    this.mapClearing = false;
+    this.chainCount = 0;
+
+    const diff = Math.min(this.mapLevel, 5);
+    this.gridMap!.generate(diff);
+    this.gridMap!.render();
+    this.bombMgr = new BombManager(this.gridMap!);
+    this.bombMgr.onExplosion = (result) => {
+      let gold = 0;
+      for (const t of result.tiles) {
+        gold += t.was === "chest" ? 20 + Math.floor(Math.random() * 30) : 2 + Math.floor(Math.random() * 5);
+        if (t.was === "chest" && Math.random() < 0.3) this.gsm.addCrystals(1);
+      }
+      if (result.tiles.length > 0) {
+        this.chainCount += result.tiles.length;
+        this.chainTimer = 3;
+        for (const m of [10, 25, 50, 100]) {
+          if (this.chainCount >= m && this.chainCount - result.tiles.length < m) {
+            gold += m * 2;
+            this.showFloating(container, `🔥 ${m} Chain! +${m * 2}`, "#ff6600", "24px");
+          }
+        }
+      }
+      if (gold > 0) { this.gsm.addGold(gold); this.showFloating(container, `+${gold} 💰`, "#ffd700", "20px"); }
+      this.gridMap?.render();
+      hud.querySelector("span")!.textContent = `💰 ${this.gsm.current.gold}`;
+    };
+    bombCanvas.width = this.gridMap!.width;
+    bombCanvas.height = this.gridMap!.height;
+
+    this.spawnHeroes(container);
+    this.monsters = spawnMonsters(MAP_COLS, MAP_ROWS, diff, (x, y) => this.gridMap!.isWalkable(x, y));
+    hud.querySelector("div:first-child")!.textContent = `💣 Treasure Hunt — Lv.${this.mapLevel}`;
+  }
+
+  private spawnHeroes(container: HTMLElement): void {
+    const spawns: [number, number][] = [];
+    for (let y = 1; y < MAP_ROWS - 1; y++) for (let x = 1; x < MAP_COLS - 1; x++) {
+      if (this.gridMap!.isWalkable(x, y)) spawns.push([x, y]);
+    }
+    for (let i = spawns.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [spawns[i], spawns[j]] = [spawns[j], spawns[i]];
+    }
+    const heroes = this.gsm.current.heroes;
+    for (let i = 0; i < Math.min(heroes.length, 15, spawns.length); i++) {
+      const inst = heroes[i];
+      if (!inst) continue;
+      const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
+      if (!tmpl) continue;
+      const [sx, sy] = spawns[i];
+      this.heroAgents.push(new HeroAgent({ id: inst.instanceId, template: tmpl, startX: sx, startY: sy, container, map: this.gridMap!, bombs: this.bombMgr! }));
+    }
+  }
+
+  private showFloating(container: HTMLElement, text: string, color: string, size: string): void {
+    const el = document.createElement("div");
+    el.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${size};font-weight:bold;color:${color};text-shadow:0 0 8px ${color}80;pointer-events:none;z-index:30;animation:dmg-fly 1s ease-out forwards;`;
+    el.textContent = text;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
   }
 
   showMenu(): void {

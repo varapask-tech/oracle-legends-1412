@@ -7,6 +7,7 @@ export interface BombInstance {
   range: number;
   ownerId: string;
   exploded: boolean;
+  pierce: boolean;
 }
 
 export interface ExplosionResult {
@@ -26,10 +27,14 @@ export class BombManager {
     this.map = map;
   }
 
-  placeBomb(x: number, y: number, range: number, ownerId: string): boolean {
+  placeBomb(x: number, y: number, range: number, ownerId: string, pierce = false): boolean {
     if (this.bombs.some((b) => b.x === x && b.y === y)) return false;
-    this.bombs.push({ x, y, timer: BOMB_FUSE, range, ownerId, exploded: false });
+    this.bombs.push({ x, y, timer: BOMB_FUSE, range, ownerId, exploded: false, pierce });
     return true;
+  }
+
+  countBombsByOwner(ownerId: string): number {
+    return this.bombs.filter((b) => b.ownerId === ownerId && !b.exploded).length;
   }
 
   update(dt: number): void {
@@ -69,7 +74,7 @@ export class BombManager {
         if (tile.type === "block" || tile.type === "chest") {
           const was = this.map.destroyTile(tx, ty);
           if (was) destroyed.push({ x: tx, y: ty, was });
-          break;
+          if (!bomb.pierce) break;
         }
       }
     }
@@ -107,9 +112,9 @@ export class BombManager {
       ctx.fill();
 
       ctx.fillStyle = "#ffdd00";
-      ctx.font = "bold 10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(Math.ceil(bomb.timer).toString(), px, py + 4);
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     for (const exp of this.explosions) {

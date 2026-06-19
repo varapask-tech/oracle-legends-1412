@@ -11,44 +11,28 @@ export interface MonsterConfig {
   crystalReward: number;
   shardReward: number;
   color: string;
+  spriteCol: number;
+  spriteRow: number;
 }
 
 const MONSTER_TEMPLATES: Record<string, MonsterConfig> = {
   slime: {
-    id: "slime",
-    name: "Slime",
-    type: "slime",
-    hp: 1,
-    speed: 0.5,
-    damage: 1,
-    goldReward: 15,
-    crystalReward: 0,
-    shardReward: 1,
-    color: "#44cc44",
+    id: "slime", name: "Slime", type: "slime",
+    hp: 1, speed: 0.5, damage: 1,
+    goldReward: 15, crystalReward: 0, shardReward: 1,
+    color: "#44cc44", spriteCol: 0, spriteRow: 0,
   },
   wolf: {
-    id: "wolf",
-    name: "Shadow Wolf",
-    type: "wolf",
-    hp: 2,
-    speed: 1.2,
-    damage: 2,
-    goldReward: 30,
-    crystalReward: 1,
-    shardReward: 2,
-    color: "#555577",
+    id: "wolf", name: "Shadow Bat", type: "wolf",
+    hp: 2, speed: 1.2, damage: 2,
+    goldReward: 30, crystalReward: 1, shardReward: 2,
+    color: "#555577", spriteCol: 2, spriteRow: 0,
   },
   golem: {
-    id: "golem",
-    name: "Stone Golem",
-    type: "golem",
-    hp: 4,
-    speed: 0.3,
-    damage: 3,
-    goldReward: 60,
-    crystalReward: 3,
-    shardReward: 5,
-    color: "#886644",
+    id: "golem", name: "Skull Golem", type: "golem",
+    hp: 4, speed: 0.3, damage: 3,
+    goldReward: 60, crystalReward: 3, shardReward: 5,
+    color: "#886644", spriteCol: 2, spriteRow: 1,
   },
 };
 
@@ -61,6 +45,18 @@ export interface MonsterInstance {
   moveTimer: number;
   direction: number;
   stunTimer: number;
+  animFrame: number;
+  animTimer: number;
+}
+
+let monsterSheet: HTMLImageElement | null = null;
+let sheetReady = false;
+
+function ensureSheet(): void {
+  if (monsterSheet) return;
+  monsterSheet = new Image();
+  monsterSheet.onload = () => { sheetReady = true; };
+  monsterSheet.src = "/assets/sprites/td-monsters.png";
 }
 
 export function spawnMonsters(
@@ -69,9 +65,9 @@ export function spawnMonsters(
   mapLevel: number,
   isWalkable: (x: number, y: number) => boolean,
 ): MonsterInstance[] {
+  ensureSheet();
   const monsters: MonsterInstance[] = [];
   const count = Math.min(3 + Math.floor(mapLevel * 1.5), 15);
-
   const types = Object.keys(MONSTER_TEMPLATES);
 
   for (let i = 0; i < count; i++) {
@@ -95,13 +91,13 @@ export function spawnMonsters(
 
     monsters.push({
       config,
-      gridX: gx,
-      gridY: gy,
-      hp: config.hp,
-      alive: true,
+      gridX: gx, gridY: gy,
+      hp: config.hp, alive: true,
       moveTimer: Math.random() * 2,
       direction: Math.floor(Math.random() * 4),
       stunTimer: 0,
+      animFrame: 0,
+      animTimer: Math.random(),
     });
   }
 
@@ -123,6 +119,12 @@ export function updateMonster(
   isWalkable: (x: number, y: number) => boolean,
 ): void {
   if (!monster.alive) return;
+
+  monster.animTimer += dt;
+  if (monster.animTimer > 0.35) {
+    monster.animTimer = 0;
+    monster.animFrame = (monster.animFrame + 1) % 2;
+  }
 
   if (monster.stunTimer > 0) {
     monster.stunTimer -= dt;
@@ -161,6 +163,8 @@ export function damageMonster(monster: MonsterInstance, damage: number): boolean
   return false;
 }
 
+const SPRITE_SIZE = 64;
+
 export function renderMonster(
   ctx: CanvasRenderingContext2D,
   monster: MonsterInstance,
@@ -172,9 +176,9 @@ export function renderMonster(
 
   const x = offsetX + monster.gridX * tileSize;
   const y = offsetY + monster.gridY * tileSize;
-  const size = tileSize * 0.7;
-  const cx = x + tileSize / 2;
-  const cy = y + tileSize / 2;
+  const drawSize = tileSize * 0.85;
+  const dx = x + (tileSize - drawSize) / 2;
+  const dy = y + (tileSize - drawSize) / 2;
 
   ctx.save();
 
@@ -182,52 +186,23 @@ export function renderMonster(
     ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.02) * 0.3;
   }
 
-  ctx.fillStyle = monster.config.color;
-  if (monster.config.type === "slime") {
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + size * 0.1, size / 2, size / 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(cx - size * 0.12, cy - size * 0.05, size * 0.08, 0, Math.PI * 2);
-    ctx.arc(cx + size * 0.12, cy - size * 0.05, size * 0.08, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#000";
-    ctx.beginPath();
-    ctx.arc(cx - size * 0.1, cy - size * 0.03, size * 0.04, 0, Math.PI * 2);
-    ctx.arc(cx + size * 0.14, cy - size * 0.03, size * 0.04, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (monster.config.type === "wolf") {
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, size / 2.5, size / 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(cx - size * 0.2, cy - size * 0.25);
-    ctx.lineTo(cx - size * 0.1, cy - size * 0.1);
-    ctx.lineTo(cx, cy - size * 0.25);
-    ctx.fill();
-    ctx.fillStyle = "#ff3333";
-    ctx.beginPath();
-    ctx.arc(cx - size * 0.08, cy - size * 0.05, size * 0.04, 0, Math.PI * 2);
-    ctx.arc(cx + size * 0.08, cy - size * 0.05, size * 0.04, 0, Math.PI * 2);
-    ctx.fill();
+  if (sheetReady && monsterSheet) {
+    const col = monster.config.spriteCol + monster.animFrame;
+    const row = monster.config.spriteRow;
+    ctx.drawImage(
+      monsterSheet,
+      col * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE,
+      dx, dy, drawSize, drawSize,
+    );
   } else {
-    ctx.fillRect(cx - size / 3, cy - size / 3, size * 0.67, size * 0.67);
-    ctx.fillStyle = "#aa8855";
-    ctx.fillRect(cx - size / 4, cy - size / 4, size * 0.5, size * 0.5);
-    ctx.fillStyle = "#ffaa33";
-    ctx.beginPath();
-    ctx.arc(cx - size * 0.08, cy - size * 0.05, size * 0.05, 0, Math.PI * 2);
-    ctx.arc(cx + size * 0.08, cy - size * 0.05, size * 0.05, 0, Math.PI * 2);
-    ctx.fill();
+    drawFallback(ctx, monster, x, y, tileSize);
   }
 
-  // HP bar
   if (monster.hp < monster.config.hp) {
-    const barW = size * 0.8;
+    const barW = drawSize * 0.8;
     const barH = 3;
-    const barX = cx - barW / 2;
-    const barY = cy - size / 2 - 6;
+    const barX = dx + (drawSize - barW) / 2;
+    const barY = dy - 5;
     ctx.fillStyle = "#333";
     ctx.fillRect(barX, barY, barW, barH);
     ctx.fillStyle = "#ff4444";
@@ -235,6 +210,19 @@ export function renderMonster(
   }
 
   ctx.restore();
+}
+
+function drawFallback(ctx: CanvasRenderingContext2D, monster: MonsterInstance, x: number, y: number, tileSize: number): void {
+  const s = tileSize * 0.7, cx = x + tileSize / 2, cy = y + tileSize / 2;
+  ctx.fillStyle = monster.config.color;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, s / 2, s / 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(cx - s * 0.1, cy - s * 0.05, s * 0.08, 0, Math.PI * 2);
+  ctx.arc(cx + s * 0.1, cy - s * 0.05, s * 0.08, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 export { MONSTER_TEMPLATES };
