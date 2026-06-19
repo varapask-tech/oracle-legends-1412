@@ -104,7 +104,7 @@ export class Battle2D {
       heroId: unit.template.id,
       x, y,
       facingRight: isHero,
-      size: isHero ? 96 : 80,
+      size: isHero ? 160 : 140,
       borderColor: isHero ? "#ffd700" : "#ff4444",
     });
 
