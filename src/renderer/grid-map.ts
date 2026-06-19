@@ -46,8 +46,8 @@ export class GridMap {
           type = "wall";
         } else {
           const roll = Math.random();
-          const blockChance = 0.3 + difficulty * 0.05;
-          const chestChance = 0.05 + difficulty * 0.01;
+          const blockChance = 0.55 + difficulty * 0.05;
+          const chestChance = 0.08 + difficulty * 0.02;
           if (roll < chestChance) type = "chest";
           else if (roll < chestChance + blockChance) type = "block";
         }

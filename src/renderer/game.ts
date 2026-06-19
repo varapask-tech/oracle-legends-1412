@@ -174,14 +174,12 @@ export class Game {
       hud.querySelector("span")!.textContent = `💰 ${this.gsm.current.gold}`;
     };
 
-    const team = this.gsm.current.team;
     const spawnPositions: [number, number][] = [];
-    for (let sy = 1; sy <= 4; sy++) for (let sx = 1; sx <= 4; sx++) {
-      if (sx % 2 === 0 && sy % 2 === 0) continue;
-      spawnPositions.push([sx, sy]);
+    for (let sy = 1; sy <= 9; sy++) for (let sx = 1; sx <= 3; sx++) {
+      if (this.gridMap.isWalkable(sx, sy)) spawnPositions.push([sx, sy]);
     }
     const allHeroes = this.gsm.current.heroes;
-    for (let i = 0; i < Math.min(allHeroes.length, 15); i++) {
+    for (let i = 0; i < Math.min(allHeroes.length, 15, spawnPositions.length); i++) {
       const inst = allHeroes[i];
       if (!inst) continue;
       const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
@@ -210,13 +208,24 @@ export class Game {
       this.heroAgents = [];
       this.gridMap!.generate(1 + Math.floor(Math.random() * 3));
       this.gridMap!.render();
+      this.bombMgr = new BombManager(this.gridMap!);
+      this.bombMgr.onExplosion = (result) => {
+        let g = 0;
+        for (const t of result.tiles) g += t.was === "chest" ? 25 : 3;
+        if (g > 0) this.gsm.addGold(g);
+        this.gridMap?.render();
+      };
+      const newSpawns: [number, number][] = [];
+      for (let sy = 1; sy <= 9; sy++) for (let sx = 1; sx <= 3; sx++) {
+        if (this.gridMap!.isWalkable(sx, sy)) newSpawns.push([sx, sy]);
+      }
       const heroes = this.gsm.current.heroes;
-      for (let i = 0; i < Math.min(heroes.length, 15); i++) {
+      for (let i = 0; i < Math.min(heroes.length, 15, newSpawns.length); i++) {
         const inst = heroes[i];
         if (!inst) continue;
         const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
         if (!tmpl) continue;
-        const [sx, sy] = spawnPositions[i];
+        const [sx, sy] = newSpawns[i];
         this.heroAgents.push(new HeroAgent({ id: inst.instanceId, template: tmpl, startX: sx, startY: sy, container: mapContainer, map: this.gridMap!, bombs: this.bombMgr! }));
       }
     });
