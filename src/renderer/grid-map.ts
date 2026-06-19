@@ -97,23 +97,31 @@ export class GridMap {
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
         if (tile.type === "wall") {
-          ctx.fillStyle = "#4a4a5a";
-          ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+          ctx.fillStyle = "#6a6a7a";
+          ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+          ctx.fillStyle = "#8a8a9a";
+          ctx.fillRect(px + 3, py + 3, TILE_SIZE - 8, TILE_SIZE - 8);
           ctx.fillStyle = "#5a5a6a";
-          ctx.fillRect(px + 4, py + 4, TILE_SIZE - 10, TILE_SIZE - 10);
+          ctx.fillRect(px + 5, py + 5, TILE_SIZE - 12, 2);
+          ctx.fillRect(px + 5, py + TILE_SIZE - 8, TILE_SIZE - 12, 2);
         } else if (tile.type === "block") {
-          ctx.fillStyle = "#8a6a3a";
-          ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-          ctx.fillStyle = "#9a7a4a";
-          ctx.fillRect(px + 6, py + 4, TILE_SIZE - 14, 4);
-          ctx.fillRect(px + 4, py + TILE_SIZE / 2, TILE_SIZE - 12, 3);
+          ctx.fillStyle = "#c4a060";
+          ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+          ctx.fillStyle = "#d4b070";
+          ctx.fillRect(px + 3, py + 3, TILE_SIZE - 6, TILE_SIZE - 6);
+          ctx.fillStyle = "#b09050";
+          ctx.fillRect(px + 5, py + 4, TILE_SIZE - 10, 3);
+          ctx.fillRect(px + 3, py + TILE_SIZE / 2, TILE_SIZE - 8, 2);
+          ctx.fillRect(px + TILE_SIZE / 2, py + 3, 2, TILE_SIZE - 8);
         } else if (tile.type === "chest") {
-          ctx.fillStyle = "#8a6a3a";
-          ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-          ctx.fillStyle = "#daa520";
-          ctx.fillRect(px + 8, py + 8, TILE_SIZE - 16, TILE_SIZE - 16);
-          ctx.fillStyle = "#ffdd44";
-          ctx.fillRect(px + TILE_SIZE / 2 - 4, py + TILE_SIZE / 2 - 3, 8, 6);
+          ctx.fillStyle = "#8B4513";
+          ctx.fillRect(px + 2, py + 4, TILE_SIZE - 4, TILE_SIZE - 6);
+          ctx.fillStyle = "#A0522D";
+          ctx.fillRect(px + 4, py + 6, TILE_SIZE - 8, TILE_SIZE - 10);
+          ctx.fillStyle = "#ffd700";
+          ctx.fillRect(px + TILE_SIZE / 2 - 5, py + TILE_SIZE / 2 - 4, 10, 8);
+          ctx.fillStyle = "#fff44f";
+          ctx.fillRect(px + TILE_SIZE / 2 - 2, py + TILE_SIZE / 2 - 1, 4, 3);
         }
       }
     }
