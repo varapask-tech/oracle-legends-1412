@@ -3,7 +3,7 @@ import { HERO_TEMPLATES } from "../shared/heroes";
 import { STAGES } from "../shared/stages";
 import { GameStateManager, createInitialState } from "../systems/game-state";
 import { Battle2D } from "./battle";
-import { GridMap } from "./grid-map";
+import { GridMap, MAP_COLS, MAP_ROWS } from "./grid-map";
 import { BombManager } from "./bomb";
 import { HeroAgent } from "./hero-agent";
 import { DailyMissionManager } from "../systems/daily-missions";
@@ -175,8 +175,12 @@ export class Game {
     };
 
     const spawnPositions: [number, number][] = [];
-    for (let sy = 1; sy <= 9; sy++) for (let sx = 1; sx <= 3; sx++) {
+    for (let sy = 1; sy < MAP_ROWS - 1; sy++) for (let sx = 1; sx < MAP_COLS - 1; sx++) {
       if (this.gridMap.isWalkable(sx, sy)) spawnPositions.push([sx, sy]);
+    }
+    for (let i = spawnPositions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [spawnPositions[i], spawnPositions[j]] = [spawnPositions[j], spawnPositions[i]];
     }
     const allHeroes = this.gsm.current.heroes;
     for (let i = 0; i < Math.min(allHeroes.length, 15, spawnPositions.length); i++) {
