@@ -6,9 +6,9 @@ export interface Tile {
   y: number;
 }
 
-export const TILE_SIZE = 48;
-export const MAP_COLS = 15;
-export const MAP_ROWS = 11;
+export const TILE_SIZE = 40;
+export const MAP_COLS = 21;
+export const MAP_ROWS = 15;
 
 const TILE_COLORS: Record<TileType, string> = {
   floor: "#3a5a2a",
@@ -26,7 +26,7 @@ export class GridMap {
     this.canvas = document.createElement("canvas");
     this.canvas.width = MAP_COLS * TILE_SIZE;
     this.canvas.height = MAP_ROWS * TILE_SIZE;
-    this.canvas.style.cssText = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); border-radius:8px; image-rendering:pixelated;";
+    this.canvas.style.cssText = "display:block; border-radius:8px; image-rendering:pixelated;";
     this.ctx = this.canvas.getContext("2d")!;
   }
 
