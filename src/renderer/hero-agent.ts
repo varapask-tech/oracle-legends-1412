@@ -3,6 +3,14 @@ import { BombManager } from "./bomb";
 import type { HeroTemplate } from "../shared/types";
 import { getPortrait } from "./sprite-animator";
 
+const TD_SPRITE_MAP: Record<string, string> = {
+  "zero-void": "td-mr0-zero.png",
+  "one-thunder": "td-mr1-one.png",
+  "two-crystal": "td-ms2-crystal.png",
+  "three-bloom": "td-ms3-creative.png",
+  "four-aegis": "td-mr4-wellness.png",
+};
+
 type Direction = "up" | "down" | "left" | "right";
 
 const DIR_DELTA: Record<Direction, [number, number]> = {
@@ -22,6 +30,7 @@ export class HeroAgent {
   stamina: number;
   maxStamina: number;
   alive = true;
+  canWalkThroughBlocks = false;
 
   private el: HTMLElement;
   private moveTimer = 0;
@@ -52,22 +61,29 @@ export class HeroAgent {
     this.map = opts.map;
     this.bombs = opts.bombs;
 
-    this.bombRange = 1 + Math.floor(opts.template.baseStats.atk / 80);
-    this.speed = 0.8 + opts.template.baseStats.spd / 200;
-    this.moveInterval = 0.4 / this.speed;
-    this.maxStamina = 10 + Math.floor(opts.template.baseStats.hp / 100);
+    const rarity = opts.template.rarity;
+    const rarityBonus = rarity === "legendary" ? 3 : rarity === "epic" ? 2 : rarity === "rare" ? 1.5 : rarity === "uncommon" ? 1.2 : 1;
+    this.bombRange = Math.floor(1 + opts.template.baseStats.atk / 60 * rarityBonus);
+    this.speed = (0.6 + opts.template.baseStats.spd / 150) * rarityBonus;
+    this.moveInterval = 0.35 / this.speed;
+    this.maxStamina = Math.floor((8 + opts.template.baseStats.hp / 80) * rarityBonus);
     this.stamina = this.maxStamina;
+    this.canWalkThroughBlocks = rarity === "legendary" || rarity === "epic";
 
     this.el = document.createElement("div");
+    const tdSprite = TD_SPRITE_MAP[opts.template.id];
     const portrait = getPortrait(opts.template.id);
+    const bgImage = tdSprite ? `url('/assets/sprites/${tdSprite}')` : (portrait ? `url('${portrait}')` : "none");
+    const rarityBorder = rarity === "legendary" ? "#ffd700" : rarity === "epic" ? "#aa44ff" : rarity === "rare" ? "#4488ff" : rarity === "uncommon" ? "#44bb44" : "#888";
     this.el.style.cssText = `
-      position:absolute; width:${TILE_SIZE - 4}px; height:${TILE_SIZE - 4}px;
-      border-radius:8px; z-index:10;
-      transition:left 0.15s linear, top 0.15s linear;
-      background:${portrait ? `url('${portrait}') center/contain no-repeat` : `#${opts.template.modelColor.toString(16).padStart(6, "0")}`};
-      border:2px solid #ffd700;
+      position:absolute; width:${TILE_SIZE - 2}px; height:${TILE_SIZE - 2}px;
+      border-radius:${tdSprite ? "4px" : "8px"}; z-index:10;
+      transition:left 0.12s linear, top 0.12s linear;
+      background:${bgImage} center/contain no-repeat;
+      ${!tdSprite && !portrait ? `background-color:#${opts.template.modelColor.toString(16).padStart(6, "0")};` : ""}
+      border:2px solid ${rarityBorder};
       filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-      left:${this.pixelX + 2}px; top:${this.pixelY + 2}px;
+      left:${this.pixelX + 1}px; top:${this.pixelY + 1}px;
     `;
     this.container.appendChild(this.el);
   }
@@ -148,7 +164,7 @@ export class HeroAgent {
       const [ddx, ddy] = DIR_DELTA[dir];
       const nx = this.gridX + ddx;
       const ny = this.gridY + ddy;
-      if (this.map.isWalkable(nx, ny) && !this.bombs.hasBombAt(nx, ny)) {
+      if (this.canMove(nx, ny)) {
         this.moveTo(nx, ny, dir);
         return;
       }
@@ -157,13 +173,22 @@ export class HeroAgent {
     this.moveRandom();
   }
 
+  private canMove(x: number, y: number): boolean {
+    if (this.bombs.hasBombAt(x, y)) return false;
+    const tile = this.map.getTile(x, y);
+    if (!tile) return false;
+    if (tile.type === "wall") return false;
+    if (tile.type === "floor") return true;
+    return this.canWalkThroughBlocks;
+  }
+
   private moveAwayFromBomb(): void {
     const dirs: Direction[] = ["up", "down", "left", "right"];
     for (const dir of dirs) {
       const [dx, dy] = DIR_DELTA[dir];
       const nx = this.gridX + dx;
       const ny = this.gridY + dy;
-      if (this.map.isWalkable(nx, ny) && !this.bombs.hasBombAt(nx, ny)) {
+      if (this.canMove(nx, ny)) {
         this.moveTo(nx, ny, dir);
         return;
       }
@@ -177,7 +202,7 @@ export class HeroAgent {
       const [dx, dy] = DIR_DELTA[dir];
       const nx = this.gridX + dx;
       const ny = this.gridY + dy;
-      if (this.map.isWalkable(nx, ny) && !this.bombs.hasBombAt(nx, ny)) {
+      if (this.canMove(nx, ny)) {
         this.moveTo(nx, ny, dir);
         return;
       }
