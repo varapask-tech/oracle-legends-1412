@@ -12,6 +12,7 @@ export interface BombInstance {
 
 export interface ExplosionResult {
   tiles: Array<{ x: number; y: number; was: TileType }>;
+  cells: Array<{ x: number; y: number }>;
   heroIds: string[];
 }
 
@@ -82,7 +83,7 @@ export class BombManager {
     this.explosions.push({ x: bomb.x, y: bomb.y, timer: 0.4, cells });
 
     if (this.onExplosion) {
-      this.onExplosion({ tiles: destroyed, heroIds: [] });
+      this.onExplosion({ tiles: destroyed, cells, heroIds: [] });
     }
   }
 

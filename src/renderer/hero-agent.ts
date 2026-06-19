@@ -18,6 +18,8 @@ const TD_SPRITE_MAP: Record<string, string> = {
   "ember-phoenix": "td-ember-phoenix.png",
 };
 
+const RGB_SPRITES = new Set(["zero-void", "one-thunder", "three-bloom", "four-aegis"]);
+
 type Direction = "up" | "down" | "left" | "right";
 
 const DIR_DELTA: Record<Direction, [number, number]> = {
@@ -105,7 +107,9 @@ export class HeroAgent {
 
     this.el = document.createElement("div");
     const fallbackBg = !tdSprite && !portrait ? `background-color:#${opts.template.modelColor.toString(16).padStart(6, "0")};` : "";
-    this.el.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:${tdSprite ? "4px" : "8px"};z-index:10;transition:left 0.12s linear,top 0.12s linear;background:${bgImage} center/contain no-repeat;${fallbackBg}border:2px solid ${r.border};filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));left:${this.pixelX + 1}px;top:${this.pixelY + 1}px;transform:scaleX(1);`;
+    const needsBlend = RGB_SPRITES.has(opts.template.id);
+    const blendCss = needsBlend ? "mix-blend-mode:screen;background-color:#000;" : "";
+    this.el.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:${tdSprite ? "4px" : "8px"};z-index:10;transition:left 0.12s linear,top 0.12s linear;background:${bgImage} center/contain no-repeat;${fallbackBg}border:2px solid ${r.border};filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));left:${this.pixelX + 1}px;top:${this.pixelY + 1}px;transform:scaleX(1);${blendCss}`;
     if (this.hasSheet) {
       this.el.style.backgroundSize = `${size * 4}px ${size * 2}px`;
       this.el.style.backgroundPosition = "0px 0px";

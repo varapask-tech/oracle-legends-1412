@@ -7,7 +7,7 @@ import { GridMap, MAP_COLS, MAP_ROWS } from "./grid-map";
 import { BombManager } from "./bomb";
 import { HeroAgent } from "./hero-agent";
 import { TILE_SIZE } from "./grid-map";
-import { spawnMonsters, updateMonster, renderMonster, type MonsterInstance } from "./monster-agent";
+import { spawnMonsters, updateMonster, renderMonster, damageMonster, type MonsterInstance } from "./monster-agent";
 import { DailyMissionManager } from "../systems/daily-missions";
 import { DailyScreen } from "./ui/daily-screen";
 import { BattleVFX } from "./battle-vfx";
@@ -183,6 +183,17 @@ export class Game {
           }
         }
       }
+      for (const m of this.monsters) {
+        if (!m.alive) continue;
+        if (result.cells.some(c => c.x === m.gridX && c.y === m.gridY)) {
+          const killed = damageMonster(m, 1);
+          if (killed) {
+            goldGained += m.config.goldReward;
+            this.gsm.addCrystals(m.config.crystalReward);
+            this.showFloating(mapContainer, `💀 ${m.config.name}! +${m.config.goldReward}`, "#ff4444", "16px");
+          }
+        }
+      }
       if (goldGained > 0) {
         this.gsm.addGold(goldGained);
         this.showFloating(mapContainer, `+${goldGained} 💰`, "#ffd700", "20px");
@@ -266,6 +277,17 @@ export class Game {
           if (this.chainCount >= m && this.chainCount - result.tiles.length < m) {
             gold += m * 2;
             this.showFloating(container, `🔥 ${m} Chain! +${m * 2}`, "#ff6600", "24px");
+          }
+        }
+      }
+      for (const m of this.monsters) {
+        if (!m.alive) continue;
+        if (result.cells.some(c => c.x === m.gridX && c.y === m.gridY)) {
+          const killed = damageMonster(m, 1);
+          if (killed) {
+            gold += m.config.goldReward;
+            this.gsm.addCrystals(m.config.crystalReward);
+            this.showFloating(container, `💀 ${m.config.name}! +${m.config.goldReward}`, "#ff4444", "16px");
           }
         }
       }
