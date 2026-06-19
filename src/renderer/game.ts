@@ -1,11 +1,12 @@
 import type { HeroTemplate } from "../shared/types";
 import { HERO_TEMPLATES } from "../shared/heroes";
 import { STAGES } from "../shared/stages";
-import { GameStateManager, createInitialState } from "./systems/game-state";
+import { GameStateManager, createInitialState } from "../systems/game-state";
 import { Battle2D } from "./battle";
 import { DailyMissionManager } from "../systems/daily-missions";
 import { DailyScreen } from "./ui/daily-screen";
 import { BattleVFX } from "./battle-vfx";
+import { SaveManager, initGame, type OfflineRewards } from "../systems/save-manager";
 
 type Screen = "menu" | "battle" | "heroes" | "summon" | "shop" | "rewards" | "daily";
 
@@ -44,16 +45,58 @@ export class Game {
   private lastTime = 0;
 
   private dailyMgr: DailyMissionManager;
+  private saveMgr: SaveManager | null = null;
+  private offlineRewards: OfflineRewards | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
-    this.gsm = new GameStateManager(createInitialState());
+
+    const { gsm, isNewGame, offlineRewards } = initGame();
+    this.gsm = gsm;
+    this.offlineRewards = offlineRewards;
+
     this.dailyMgr = new DailyMissionManager();
     BattleVFX.injectStyles();
+
+    this.saveMgr = new SaveManager(this.gsm);
+    this.saveMgr.start();
   }
 
   start(): void {
-    this.showMenu();
+    if (this.offlineRewards && this.offlineRewards.elapsedSeconds >= 60) {
+      this.showOfflineRewards(this.offlineRewards);
+      this.offlineRewards = null;
+    } else {
+      this.showMenu();
+    }
+  }
+
+  private showOfflineRewards(rewards: OfflineRewards): void {
+    this.clear();
+    const hours = Math.floor(rewards.elapsedSeconds / 3600);
+    const mins = Math.floor((rewards.elapsedSeconds % 3600) / 60);
+    const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+    this.gsm.addGold(rewards.gold);
+    this.gsm.addExpToTeam(rewards.exp);
+
+    const screen = document.createElement("div");
+    screen.style.cssText = `
+      width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:radial-gradient(ellipse at center, #1a0a3a 0%, #0a0a1a 100%);
+      font-family:'Segoe UI',sans-serif; color:#fff;
+    `;
+    screen.innerHTML = `
+      <h1 style="color:#ffd700; font-size:28px; margin-bottom:8px;">🌙 Welcome Back!</h1>
+      <p style="color:#aaa; font-size:14px; margin-bottom:24px;">You were away for ${timeStr}</p>
+      <div style="display:flex; gap:24px; margin-bottom:32px;">
+        <div style="text-align:center"><div style="font-size:28px">💰</div><div style="color:#ffd700; font-size:22px; font-weight:bold">+${rewards.gold}</div><div style="color:#888; font-size:12px">Gold</div></div>
+        <div style="text-align:center"><div style="font-size:28px">✨</div><div style="color:#88ccff; font-size:22px; font-weight:bold">+${rewards.exp}</div><div style="color:#888; font-size:12px">EXP</div></div>
+      </div>
+    `;
+    const btn = this.makeBtn("Collect! →", "#ffd700", () => this.showMenu());
+    screen.appendChild(btn);
+    this.container.appendChild(screen);
   }
 
   private clear(): void {
@@ -143,7 +186,7 @@ export class Game {
     const heroTemplates: HeroTemplate[] = [];
     const heroLevels: number[] = [];
     for (const id of this.gsm.current.team) {
-      const inst = this.gsm.getHeroByInstance(id);
+      const inst = this.gsm.findHero(id);
       if (!inst) continue;
       const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
       if (!tmpl) continue;

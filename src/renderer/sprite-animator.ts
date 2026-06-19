@@ -1,24 +1,8 @@
-export type Pose = "idle" | "attack" | "hit" | "victory" | "dead";
-
-export interface SpriteSet {
-  idle: string;
-  attack: string;
-  hit: string;
-  victory: string;
-}
+export type Pose = "idle" | "walk" | "attack" | "skill" | "hit" | "death" | "victory";
 
 const SPRITE_BASE = "/assets/sprites";
-
-export function getSpriteSet(heroId: string): SpriteSet {
-  return {
-    idle: `${SPRITE_BASE}/${heroId}-idle.png`,
-    attack: `${SPRITE_BASE}/${heroId}-attack.png`,
-    hit: `${SPRITE_BASE}/${heroId}-hit.png`,
-    victory: `${SPRITE_BASE}/${heroId}-victory.png`,
-  };
-}
-
 const PORTRAIT_BASE = "/assets/characters";
+
 const PORTRAIT_MAP: Record<string, string> = {
   "zero-void": `${PORTRAIT_BASE}/mr0-zero.png`,
   "one-thunder": `${PORTRAIT_BASE}/mr1-thunder.png`,
@@ -38,24 +22,24 @@ export function getPortrait(heroId: string): string {
   return PORTRAIT_MAP[heroId] ?? "";
 }
 
-interface AnimState {
-  pose: Pose;
-  progress: number;
-  duration: number;
-  onComplete?: () => void;
-}
+type RenderMode = "poses" | "sheet" | "portrait";
 
 export class SpriteAnimator {
-  private el: HTMLImageElement;
-  private sprites: SpriteSet;
-  private fallbackUrl: string;
-  private state: AnimState;
+  private el: HTMLElement;
   private baseX: number;
   private baseY: number;
   private facingRight: boolean;
   private container: HTMLElement;
-  private spriteSize: number;
-  private useFallback = false;
+  private displaySize: number;
+  private mode: RenderMode = "portrait";
+  private currentPose: Pose = "idle";
+  private heroId: string;
+  private sheetPoseMap: Record<string, { col: number; row: number }> = {
+    idle: { col: 0, row: 0 },
+    attack: { col: 1, row: 0 },
+    hit: { col: 0, row: 1 },
+    victory: { col: 1, row: 1 },
+  };
 
   constructor(opts: {
     container: HTMLElement;
@@ -67,42 +51,79 @@ export class SpriteAnimator {
     borderColor?: string;
   }) {
     this.container = opts.container;
+    this.heroId = opts.heroId;
     this.baseX = opts.x;
     this.baseY = opts.y;
     this.facingRight = opts.facingRight;
-    this.spriteSize = opts.size ?? 96;
-    this.sprites = getSpriteSet(opts.heroId);
-    this.fallbackUrl = getPortrait(opts.heroId);
+    this.displaySize = opts.size ?? 96;
 
-    this.el = document.createElement("img");
+    this.el = document.createElement("div");
     this.el.style.cssText = `
-      position:absolute; width:${this.spriteSize}px; height:${this.spriteSize}px;
-      object-fit:contain; image-rendering:auto;
-      left:${this.baseX - this.spriteSize / 2}px;
-      top:${this.baseY - this.spriteSize / 2}px;
+      position:absolute; width:${this.displaySize}px; height:${this.displaySize}px;
+      left:${this.baseX - this.displaySize / 2}px;
+      top:${this.baseY - this.displaySize / 2}px;
       ${!this.facingRight ? "transform:scaleX(-1);" : ""}
       transition:left 0.3s ease, top 0.15s ease;
       filter:drop-shadow(0 4px 8px rgba(0,0,0,0.5));
       z-index:5;
+      background-size:contain; background-repeat:no-repeat; background-position:center;
     `;
-    this.el.src = this.sprites.idle;
-    this.el.onerror = () => {
-      this.useFallback = true;
-      this.el.src = this.fallbackUrl;
-      this.el.style.borderRadius = "10px";
-      this.el.style.border = `2px solid ${opts.borderColor ?? "#ffd700"}`;
-      this.el.style.background = "rgba(10,5,20,0.7)";
-    };
     this.container.appendChild(this.el);
 
-    this.state = { pose: "idle", progress: 0, duration: 0 };
+    this.tryLoadPoses(opts.borderColor ?? "#ffd700");
   }
 
-  setPose(pose: Pose, duration = 0.5, onComplete?: () => void): void {
-    this.state = { pose, progress: 0, duration, onComplete };
-    if (!this.useFallback) {
-      const src = pose === "dead" ? this.sprites.hit : this.sprites[pose];
-      if (this.el.src !== src) this.el.src = src;
+  private tryLoadPoses(borderColor: string): void {
+    const idleUrl = `${SPRITE_BASE}/${this.heroId}-idle.png`;
+    const img = new Image();
+    img.onload = () => {
+      this.mode = "poses";
+      this.el.style.backgroundImage = `url('${idleUrl}')`;
+    };
+    img.onerror = () => this.tryLoadSheet(borderColor);
+    img.src = idleUrl;
+  }
+
+  private tryLoadSheet(borderColor: string): void {
+    const sheetUrl = `${SPRITE_BASE}/${this.heroId}-sprites.png`;
+    const img = new Image();
+    img.onload = () => {
+      this.mode = "sheet";
+      this.el.style.backgroundImage = `url('${sheetUrl}')`;
+      this.el.style.backgroundSize = "200% 200%";
+      this.el.style.backgroundPosition = "0% 0%";
+    };
+    img.onerror = () => this.loadPortrait(borderColor);
+    img.src = sheetUrl;
+  }
+
+  private loadPortrait(borderColor: string): void {
+    this.mode = "portrait";
+    const url = getPortrait(this.heroId);
+    if (url) {
+      this.el.style.backgroundImage = `url('${url}')`;
+    }
+    this.el.style.borderRadius = "10px";
+    this.el.style.border = `2px solid ${borderColor}`;
+    this.el.style.backgroundColor = "rgba(10,5,20,0.7)";
+  }
+
+  private showPose(pose: string): void {
+    if (this.mode === "poses") {
+      const mapped = (pose === "walk" || pose === "skill") ? "idle" : pose === "death" ? "hit" : pose;
+      this.el.style.backgroundImage = `url('${SPRITE_BASE}/${this.heroId}-${mapped}.png')`;
+    } else if (this.mode === "sheet") {
+      const mapped = (pose === "walk" || pose === "skill") ? "idle" : pose === "death" ? "hit" : pose;
+      const pos = this.sheetPoseMap[mapped] ?? { col: 0, row: 0 };
+      this.el.style.backgroundPosition = `${pos.col * 100}% ${pos.row * 100}%`;
+    }
+  }
+
+  setPose(pose: Pose, onComplete?: () => void): void {
+    this.currentPose = pose;
+    this.showPose(pose);
+    if (onComplete) {
+      setTimeout(() => onComplete(), 400);
     }
   }
 
@@ -110,33 +131,37 @@ export class SpriteAnimator {
     const midX = this.baseX + (targetX - this.baseX) * 0.6;
     const midY = this.baseY + (targetY - this.baseY) * 0.3;
 
-    this.setPose("attack", 0.8);
+    this.setPose("walk");
     this.moveTo(midX, midY);
     this.el.style.transform = this.facingRight ? "scale(1.15)" : "scaleX(-1) scale(1.15)";
 
     setTimeout(() => {
-      onHit();
+      this.setPose("attack");
       setTimeout(() => {
-        this.moveTo(this.baseX, this.baseY);
-        this.el.style.transform = this.facingRight ? "" : "scaleX(-1)";
-        setTimeout(() => this.setPose("idle"), 300);
+        onHit();
+        setTimeout(() => {
+          this.setPose("walk");
+          this.moveTo(this.baseX, this.baseY);
+          this.el.style.transform = this.facingRight ? "" : "scaleX(-1)";
+          setTimeout(() => this.setPose("idle"), 350);
+        }, 200);
       }, 200);
     }, 300);
   }
 
   playHit(): void {
-    this.setPose("hit", 0.4, () => this.setPose("idle"));
+    this.setPose("hit", () => this.setPose("idle"));
     this.el.style.filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.5)) brightness(2)";
-    const shakeOffset = (Math.random() - 0.5) * 10;
-    this.el.style.left = `${this.baseX - this.spriteSize / 2 + shakeOffset}px`;
+    const shake = (Math.random() - 0.5) * 12;
+    this.el.style.left = `${this.baseX - this.displaySize / 2 + shake}px`;
     setTimeout(() => {
       this.el.style.filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.5))";
-      this.el.style.left = `${this.baseX - this.spriteSize / 2}px`;
+      this.el.style.left = `${this.baseX - this.displaySize / 2}px`;
     }, 150);
   }
 
   playDeath(): void {
-    this.setPose("dead");
+    this.setPose("death");
     this.el.style.transition = "opacity 0.8s, transform 0.8s, filter 0.8s";
     this.el.style.opacity = "0.3";
     this.el.style.filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.5)) grayscale(1)";
@@ -149,30 +174,22 @@ export class SpriteAnimator {
     this.el.style.transform = (this.facingRight ? "" : "scaleX(-1) ") + "translateY(-15px)";
     setTimeout(() => {
       this.el.style.transform = this.facingRight ? "" : "scaleX(-1)";
-    }, 500);
+    }, 600);
   }
 
   private moveTo(x: number, y: number): void {
-    this.el.style.left = `${x - this.spriteSize / 2}px`;
-    this.el.style.top = `${y - this.spriteSize / 2}px`;
+    this.el.style.left = `${x - this.displaySize / 2}px`;
+    this.el.style.top = `${y - this.displaySize / 2}px`;
   }
 
   getPosition(): { x: number; y: number } {
     return { x: this.baseX, y: this.baseY };
   }
 
-  update(dt: number): void {
-    if (this.state.duration > 0) {
-      this.state.progress += dt;
-      if (this.state.progress >= this.state.duration) {
-        this.state.duration = 0;
-        this.state.onComplete?.();
-      }
-    }
-
-    if (this.state.pose === "idle" && !this.useFallback) {
+  update(_dt: number): void {
+    if (this.currentPose === "idle") {
       const breathe = Math.sin(performance.now() / 500) * 3;
-      this.el.style.top = `${this.baseY - this.spriteSize / 2 + breathe}px`;
+      this.el.style.top = `${this.baseY - this.displaySize / 2 + breathe}px`;
     }
   }
 
