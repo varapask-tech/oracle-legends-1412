@@ -56,6 +56,8 @@ export class HeroAgent {
 
   private el: HTMLElement;
   private shadow: HTMLElement;
+  private staminaBar: HTMLElement;
+  private nameLabel: HTMLElement;
   private moveTimer = 0;
   private moveInterval: number;
   private bombCooldown = 0;
@@ -115,17 +117,33 @@ export class HeroAgent {
       this.el.style.backgroundPosition = "0px 0px";
     }
     this.container.appendChild(this.el);
+
+    this.staminaBar = document.createElement("div");
+    this.staminaBar.style.cssText = `position:absolute;width:${size}px;height:3px;border-radius:2px;background:#333;pointer-events:none;z-index:11;left:${this.pixelX + 1}px;top:${this.pixelY - 2}px;transition:left 0.12s linear,top 0.12s linear;overflow:hidden;`;
+    this.staminaBar.innerHTML = `<div style="width:100%;height:100%;background:#44ff44;border-radius:2px;transition:width 0.3s;"></div>`;
+    this.container.appendChild(this.staminaBar);
+
+    this.nameLabel = document.createElement("div");
+    this.nameLabel.style.cssText = `position:absolute;font-size:8px;color:#fff;text-shadow:0 1px 2px #000;pointer-events:none;z-index:11;white-space:nowrap;left:${this.pixelX + size / 2}px;top:${this.pixelY - 10}px;transform:translateX(-50%);transition:left 0.12s linear,top 0.12s linear;`;
+    this.nameLabel.textContent = opts.template.name;
+    this.container.appendChild(this.nameLabel);
   }
 
   update(dt: number): void {
     if (!this.alive) return;
+    const pct = Math.max(0, this.stamina / this.maxStamina);
+    const fill = this.staminaBar.firstElementChild as HTMLElement;
+    if (fill) { fill.style.width = `${pct * 100}%`; fill.style.background = pct > 0.5 ? "#44ff44" : pct > 0.2 ? "#ffaa00" : "#ff4444"; }
+
     if (this.stamina <= 0 || this.resting) {
-      if (!this.resting) { this.resting = true; this.restTimer = this.restDuration; this.el.style.opacity = "0.4"; }
+      if (!this.resting) { this.resting = true; this.restTimer = this.restDuration; this.el.style.opacity = "0.4"; this.nameLabel.textContent = "💤"; }
       this.restTimer -= dt;
+      if (fill) fill.style.width = `${(1 - this.restTimer / this.restDuration) * 100}%`;
       if (this.restTimer <= 0) {
         this.resting = false;
         this.stamina = this.maxStamina;
         this.el.style.opacity = "1";
+        this.nameLabel.textContent = this.template.name;
       }
       return;
     }
@@ -212,12 +230,16 @@ export class HeroAgent {
   private moveTo(x: number, y: number, dir: Direction): void {
     this.gridX = x; this.gridY = y; this.direction = dir;
     this.pixelX = x * TILE_SIZE; this.pixelY = y * TILE_SIZE;
+    const s = TILE_SIZE - 2;
     this.el.style.left = `${this.pixelX + 1}px`;
     this.el.style.top = `${this.pixelY + 1}px`;
-    const s = TILE_SIZE - 2;
     this.shadow.style.left = `${this.pixelX + 1 + s * 0.15}px`;
     this.shadow.style.top = `${this.pixelY + s * 0.75}px`;
+    this.staminaBar.style.left = `${this.pixelX + 1}px`;
+    this.staminaBar.style.top = `${this.pixelY - 2}px`;
+    this.nameLabel.style.left = `${this.pixelX + s / 2}px`;
+    this.nameLabel.style.top = `${this.pixelY - 10}px`;
   }
 
-  destroy(): void { this.el.remove(); this.shadow.remove(); this.alive = false; }
+  destroy(): void { this.el.remove(); this.shadow.remove(); this.staminaBar.remove(); this.nameLabel.remove(); this.alive = false; }
 }

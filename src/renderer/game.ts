@@ -12,6 +12,7 @@ import { DailyMissionManager } from "../systems/daily-missions";
 import { DailyScreen } from "./ui/daily-screen";
 import { BattleVFX } from "./battle-vfx";
 import { SaveManager, initGame, type OfflineRewards } from "../systems/save-manager";
+import { showHuntSelect } from "./ui/hunt-select";
 
 type Screen = "menu" | "battle" | "heroes" | "summon" | "shop" | "rewards" | "daily";
 
@@ -61,6 +62,8 @@ export class Game {
   private mapLevel = 1;
   private mapContainer: HTMLElement | null = null;
   private mapClearing = false;
+  private huntTeam: string[] = [];
+  private killCount = 0;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -123,6 +126,19 @@ export class Game {
     cancelAnimationFrame(this.animFrameId);
   }
 
+  private showHuntTeamSelect(): void {
+    this.clear();
+    showHuntSelect(
+      this.container,
+      this.gsm.current.heroes,
+      (selectedIds) => {
+        this.huntTeam = selectedIds;
+        this.startTreasureHunt();
+      },
+      () => this.showMenu(),
+    );
+  }
+
   private startTreasureHunt(): void {
     this.clear();
     this.currentScreen = "battle";
@@ -136,7 +152,10 @@ export class Game {
     this.mapLevel = this.gsm.current.mapLevel || 1;
     hud.innerHTML = `
       <div style="color:#ffd700; font-size:15px; font-weight:bold;">💣 Treasure Hunt — Lv.${this.mapLevel}</div>
-      <div style="display:flex; gap:16px; font-size:13px;">
+      <div style="display:flex; gap:16px; font-size:13px; align-items:center;">
+        <span id="hud-chain" style="color:#ff6600;display:none;">🔥 0</span>
+        <span id="hud-blocks" style="color:#aaa;">📦 0</span>
+        <span id="hud-kills" style="color:#ff4444;">💀 0</span>
         <span style="color:#ffd700">💰 ${this.gsm.current.gold}</span>
         <span style="color:#aa88ff">💎 ${this.gsm.current.crystals}</span>
       </div>
@@ -190,6 +209,7 @@ export class Game {
           if (killed) {
             goldGained += m.config.goldReward;
             this.gsm.addCrystals(m.config.crystalReward);
+            this.killCount++;
             this.showFloating(mapContainer, `💀 ${m.config.name}! +${m.config.goldReward}`, "#ff4444", "16px");
           }
         }
@@ -199,7 +219,6 @@ export class Game {
         this.showFloating(mapContainer, `+${goldGained} 💰`, "#ffd700", "20px");
       }
       this.gridMap?.render();
-      hud.querySelector("span")!.textContent = `💰 ${this.gsm.current.gold}`;
     };
 
     this.spawnHeroes(mapContainer);
@@ -223,6 +242,7 @@ export class Game {
     this.chainCount = 0;
     this.chainTimer = 0;
     this.mapClearing = false;
+    this.killCount = 0;
 
     this.lastTime = performance.now();
     const huntLoop = () => {
@@ -239,6 +259,13 @@ export class Game {
       bombCtx.clearRect(0, 0, bombCanvas.width, bombCanvas.height);
       this.bombMgr!.render(bombCtx);
       for (const m of this.monsters) if (m.alive) renderMonster(bombCtx, m, TILE_SIZE, 0, 0);
+
+      const chainEl = hud.querySelector("#hud-chain") as HTMLElement;
+      const blocksEl = hud.querySelector("#hud-blocks") as HTMLElement;
+      const killsEl = hud.querySelector("#hud-kills") as HTMLElement;
+      if (chainEl) { chainEl.style.display = this.chainCount > 0 ? "" : "none"; chainEl.textContent = `🔥 ${this.chainCount}`; }
+      if (blocksEl) blocksEl.textContent = `📦 ${this.gridMap!.countTilesOfType("block") + this.gridMap!.countTilesOfType("chest")}`;
+      if (killsEl) killsEl.textContent = `💀 ${this.killCount}`;
 
       if (!this.mapClearing && this.gridMap!.countTilesOfType("block") + this.gridMap!.countTilesOfType("chest") === 0) {
         this.mapClearing = true;
@@ -288,13 +315,13 @@ export class Game {
           if (killed) {
             gold += m.config.goldReward;
             this.gsm.addCrystals(m.config.crystalReward);
+            this.killCount++;
             this.showFloating(container, `💀 ${m.config.name}! +${m.config.goldReward}`, "#ff4444", "16px");
           }
         }
       }
       if (gold > 0) { this.gsm.addGold(gold); this.showFloating(container, `+${gold} 💰`, "#ffd700", "20px"); }
       this.gridMap?.render();
-      hud.querySelector("span")!.textContent = `💰 ${this.gsm.current.gold}`;
     };
     bombCanvas.width = this.gridMap!.width;
     bombCanvas.height = this.gridMap!.height;
@@ -313,9 +340,12 @@ export class Game {
       const j = Math.floor(Math.random() * (i + 1));
       [spawns[i], spawns[j]] = [spawns[j], spawns[i]];
     }
-    const heroes = this.gsm.current.heroes;
-    for (let i = 0; i < Math.min(heroes.length, 15, spawns.length); i++) {
-      const inst = heroes[i];
+    const allHeroes = this.gsm.current.heroes;
+    const deployList = this.huntTeam.length > 0
+      ? this.huntTeam.map(id => allHeroes.find(h => h.instanceId === id)).filter(Boolean)
+      : allHeroes.slice(0, 15);
+    for (let i = 0; i < Math.min(deployList.length, 15, spawns.length); i++) {
+      const inst = deployList[i];
       if (!inst) continue;
       const tmpl = HERO_TEMPLATES.find((t) => t.id === inst.templateId);
       if (!tmpl) continue;
@@ -350,7 +380,7 @@ export class Game {
     stats.innerHTML = `<span style="color:#ffd700;font-size:15px;">💰 ${state.gold.toLocaleString()}</span><span style="color:#aa88ff;font-size:15px;">💎 ${state.crystals}</span><span style="color:#aaa;font-size:15px;">🦸 ${state.heroes.length}</span><span style="color:#88ff88;font-size:15px;">🗺️ Lv.${state.mapLevel || 1}</span>`;
     menu.appendChild(stats);
 
-    const mainBtn = this.makeBtn("💣 Treasure Hunt", "#ffd700", () => this.startTreasureHunt());
+    const mainBtn = this.makeBtn("💣 Treasure Hunt", "#ffd700", () => this.showHuntTeamSelect());
     mainBtn.style.cssText += "padding:16px 48px;font-size:18px;border-radius:12px;";
     menu.appendChild(mainBtn);
 
