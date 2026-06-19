@@ -6,6 +6,8 @@ import { Battle2D } from "./battle";
 import { GridMap, MAP_COLS, MAP_ROWS } from "./grid-map";
 import { BombManager } from "./bomb";
 import { HeroAgent } from "./hero-agent";
+import { TILE_SIZE } from "./grid-map";
+import { spawnMonsters, updateMonster, renderMonster, type MonsterInstance } from "./monster-agent";
 import { DailyMissionManager } from "../systems/daily-missions";
 import { DailyScreen } from "./ui/daily-screen";
 import { BattleVFX } from "./battle-vfx";
@@ -53,6 +55,7 @@ export class Game {
   private gridMap: GridMap | null = null;
   private bombMgr: BombManager | null = null;
   private heroAgents: HeroAgent[] = [];
+  private monsters: MonsterInstance[] = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -201,6 +204,8 @@ export class Game {
       this.heroAgents.push(agent);
     }
 
+    this.monsters = spawnMonsters(MAP_COLS, MAP_ROWS, 1, (x, y) => this.gridMap!.isWalkable(x, y));
+
     const bottomBar = document.createElement("div");
     bottomBar.style.cssText = "position:absolute; bottom:0; left:0; width:100%; padding:12px; z-index:20; display:flex; justify-content:center; gap:12px; background:linear-gradient(0deg, rgba(10,5,30,0.9), transparent);";
     const menuBtn = this.makeBtn("← Menu", "#666", () => this.showMenu());
@@ -244,10 +249,12 @@ export class Game {
       this.lastTime = now;
 
       for (const agent of this.heroAgents) agent.update(dt);
+      for (const m of this.monsters) updateMonster(m, dt, MAP_COLS, MAP_ROWS, (x, y) => this.gridMap!.isWalkable(x, y));
       this.bombMgr!.update(dt);
 
       bombCtx.clearRect(0, 0, bombCanvas.width, bombCanvas.height);
       this.bombMgr!.render(bombCtx);
+      for (const m of this.monsters) if (m.alive) renderMonster(bombCtx, m, TILE_SIZE, 0, 0);
 
       if (this.currentScreen === "battle") {
         this.animFrameId = requestAnimationFrame(huntLoop);

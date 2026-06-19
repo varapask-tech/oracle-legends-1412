@@ -89,14 +89,18 @@ export class HeroAgent {
   }
 
   update(dt: number): void {
-    if (!this.alive || this.stamina <= 0) return;
+    if (!this.alive || this.stamina <= 0) {
+      if (this.stamina <= 0) this.el.style.opacity = "0.4";
+      return;
+    }
 
     this.animTimer += dt;
-    if (this.animTimer > 0.3) {
+    if (this.animTimer > 0.2) {
       this.animTimer = 0;
       this.animFrame = (this.animFrame + 1) % 2;
-      const bounce = this.animFrame === 0 ? 0 : -3;
-      this.el.style.top = `${this.pixelY + 2 + bounce}px`;
+      const bounce = this.animFrame === 0 ? 0 : -4;
+      const scaleX = (this.direction === "left") ? -1 : 1;
+      this.el.style.transform = `scaleX(${scaleX}) translateY(${bounce}px)`;
     }
 
     if (this.bombCooldown > 0) this.bombCooldown -= dt;
@@ -215,8 +219,10 @@ export class HeroAgent {
     this.direction = dir;
     this.pixelX = x * TILE_SIZE;
     this.pixelY = y * TILE_SIZE;
-    this.el.style.left = `${this.pixelX + 2}px`;
-    this.el.style.top = `${this.pixelY + 2}px`;
+    this.el.style.left = `${this.pixelX + 1}px`;
+    this.el.style.top = `${this.pixelY + 1}px`;
+    const scaleX = dir === "left" ? -1 : 1;
+    this.el.style.transform = `scaleX(${scaleX})`;
   }
 
   destroy(): void {
