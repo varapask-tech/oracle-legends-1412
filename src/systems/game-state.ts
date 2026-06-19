@@ -37,6 +37,7 @@ export function createInitialState(): GameState {
     currentStage: "1-1",
     lastOnlineAt: Date.now(),
     totalPlayTime: 0,
+    mapLevel: 1,
   };
 }
 
@@ -94,6 +95,13 @@ export class GameStateManager {
 
   canAffordGold(cost: number): boolean { return this.state.gold >= cost; }
   canAffordCrystals(cost: number): boolean { return this.state.crystals >= cost; }
+
+  // ── Map Level ──
+
+  setMapLevel(level: number) {
+    this.state.mapLevel = level;
+    this.notify();
+  }
 
   // ── Heroes ──
 

@@ -19,13 +19,13 @@ const PORTRAITS: Record<string, string> = {
   "zero-void": "/assets/characters/mr0-zero.png",
   "one-thunder": "/assets/characters/mr1-thunder.png",
   "two-crystal": "/assets/characters/ms2-crystal.png",
-  "three-star": "/assets/characters/ms3-creative.png",
-  "four-earth": "/assets/characters/mr4-wellness.png",
-  "aria-flame": "/assets/characters/aria-flame.png",
-  "luna-tide": "/assets/characters/luna-tide.png",
-  "kael-stone": "/assets/characters/kael-stone.png",
-  "nyx-shadow": "/assets/characters/nyx-shadow.png",
-  "sol-dawn": "/assets/characters/sol-dawn.png",
+  "three-bloom": "/assets/characters/ms3-creative.png",
+  "four-aegis": "/assets/characters/mr4-wellness.png",
+  "aria-flameblade": "/assets/characters/aria-flame.png",
+  "luna-tideweaver": "/assets/characters/luna-tide.png",
+  "kael-stoneguard": "/assets/characters/kael-stone.png",
+  "nyx-shadowstep": "/assets/characters/nyx-shadow.png",
+  "sol-lightbringer": "/assets/characters/sol-dawn.png",
   "frost-whisper": "/assets/characters/frost-whisper.png",
   "ember-phoenix": "/assets/characters/ember-phoenix.png",
 };
@@ -133,7 +133,7 @@ export class Game {
 
     const hud = document.createElement("div");
     hud.style.cssText = "position:absolute; top:0; left:0; width:100%; padding:10px 20px; z-index:20; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(180deg, rgba(10,5,30,0.9), transparent);";
-    this.mapLevel = 1;
+    this.mapLevel = this.gsm.current.mapLevel || 1;
     hud.innerHTML = `
       <div style="color:#ffd700; font-size:15px; font-weight:bold;">💣 Treasure Hunt — Lv.${this.mapLevel}</div>
       <div style="display:flex; gap:16px; font-size:13px;">
@@ -259,6 +259,7 @@ export class Game {
     this.heroAgents = [];
     this.mapClearing = false;
     this.chainCount = 0;
+    this.gsm.setMapLevel(this.mapLevel);
 
     const diff = Math.min(this.mapLevel, 5);
     this.gridMap!.generate(diff);
@@ -337,52 +338,53 @@ export class Game {
     const state = this.gsm.current;
 
     const menu = document.createElement("div");
-    menu.style.cssText = `
-      width: 100%; height: 100%;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: radial-gradient(ellipse at center, #1a0a3a 0%, #0a0a1a 100%);
-      font-family: 'Segoe UI', sans-serif; color: #fff;
-    `;
+    menu.style.cssText = "width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#1a0a3a 0%,#0a0a1a 100%);font-family:'Segoe UI',sans-serif;color:#fff;gap:16px;";
 
-    menu.innerHTML = `
-      <h1 style="color:#ffd700; font-size:32px; text-shadow:0 0 20px rgba(255,215,0,0.5); margin-bottom:4px;">⚔️ Oracle Legends</h1>
-      <p style="color:#888; font-size:13px; margin-bottom:8px;">Universe 1412</p>
-      <div style="display:flex; gap:16px; margin-bottom:24px; font-size:14px;">
-        <span style="color:#ffd700">💰 ${state.gold}</span>
-        <span style="color:#aa88ff">💎 ${state.crystals}</span>
-        <span style="color:#aaa">🦸 ${state.heroes.length} heroes</span>
-        <span style="color:#aaa">📍 Stage ${state.currentStage}</span>
-      </div>
-    `;
+    const title = document.createElement("div");
+    title.style.cssText = "text-align:center;";
+    title.innerHTML = `<h1 style="color:#ffd700;font-size:36px;text-shadow:0 0 30px rgba(255,215,0,0.4);margin:0;">Oracle Legends</h1><p style="color:#aa88ff;font-size:14px;margin:4px 0 0;">Universe 1412</p>`;
+    menu.appendChild(title);
+
+    const stats = document.createElement("div");
+    stats.style.cssText = "display:flex;gap:20px;padding:8px 24px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);";
+    stats.innerHTML = `<span style="color:#ffd700;font-size:15px;">💰 ${state.gold.toLocaleString()}</span><span style="color:#aa88ff;font-size:15px;">💎 ${state.crystals}</span><span style="color:#aaa;font-size:15px;">🦸 ${state.heroes.length}</span><span style="color:#88ff88;font-size:15px;">🗺️ Lv.${state.mapLevel || 1}</span>`;
+    menu.appendChild(stats);
+
+    const mainBtn = this.makeBtn("💣 Treasure Hunt", "#ffd700", () => this.startTreasureHunt());
+    mainBtn.style.cssText += "padding:16px 48px;font-size:18px;border-radius:12px;";
+    menu.appendChild(mainBtn);
 
     const unclaimedDaily = this.dailyMgr.missions.filter((m) => m.completed && !m.claimed).length;
     const dailyBadge = unclaimedDaily > 0 ? ` (${unclaimedDaily}!)` : "";
 
-    const buttons = [
-      { label: "💣 Treasure Hunt", desc: "Deploy heroes, collect loot!", action: () => this.startTreasureHunt() },
-      { label: "🎰 Summon", desc: `💎${10} per pull`, action: () => this.showSummon() },
-      { label: "🦸 Heroes", desc: `${state.heroes.length} heroes`, action: () => this.showHeroes() },
-      { label: "🏪 Shop", desc: "Buy equipment", action: () => this.showShop() },
-      { label: `📋 Quests${dailyBadge}`, desc: `${this.dailyMgr.completedCount}/9 done`, action: () => this.showDaily() },
-      { label: "⚔️ Battle", desc: "Classic auto-battle", action: () => this.startBattle() },
+    const subBtns = [
+      { label: "🦸 Heroes", action: () => this.showHeroes() },
+      { label: "🎰 Summon", action: () => this.showSummon() },
+      { label: "🏪 Shop", action: () => this.showShop() },
+      { label: `📋 Quests${dailyBadge}`, action: () => this.showDaily() },
+      { label: "⚔️ Battle", action: () => this.startBattle() },
     ];
 
-    const grid = document.createElement("div");
-    grid.style.cssText = "display:grid; grid-template-columns:1fr 1fr; gap:12px; width:320px;";
-    for (const b of buttons) {
-      const btn = document.createElement("button");
-      btn.style.cssText = `
-        padding:16px; border-radius:10px; cursor:pointer; border:1px solid #3a2a5a;
-        background:rgba(20,10,40,0.8); color:#fff; font-size:16px; font-weight:bold;
-        transition:transform 0.15s, border-color 0.15s;
-      `;
-      btn.innerHTML = `${b.label}<br><span style="font-size:11px; color:#888; font-weight:normal">${b.desc}</span>`;
-      btn.addEventListener("click", b.action);
-      btn.addEventListener("mouseenter", () => { btn.style.transform = "scale(1.05)"; btn.style.borderColor = "#ffd700"; });
-      btn.addEventListener("mouseleave", () => { btn.style.transform = ""; btn.style.borderColor = "#3a2a5a"; });
-      grid.appendChild(btn);
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:500px;";
+    for (const b of subBtns) {
+      const btn = this.makeBtn(b.label, "#666", b.action);
+      btn.style.cssText += "padding:10px 20px;font-size:14px;";
+      row.appendChild(btn);
     }
-    menu.appendChild(grid);
+    menu.appendChild(row);
+
+    const teamPreview = document.createElement("div");
+    teamPreview.style.cssText = "display:flex;gap:6px;margin-top:8px;";
+    const team = state.heroes.slice(0, 5);
+    for (const h of team) {
+      const tmpl = HERO_TEMPLATES.find((t) => t.id === h.templateId);
+      if (!tmpl) continue;
+      const rc: Record<string, string> = { legendary: "#ffd700", epic: "#a4f", rare: "#48f", uncommon: "#4b4", common: "#888" };
+      teamPreview.innerHTML += heroPortrait(tmpl.id, 48, rc[tmpl.rarity] ?? "#888");
+    }
+    menu.appendChild(teamPreview);
+
     this.container.appendChild(menu);
   }
 
@@ -555,55 +557,57 @@ export class Game {
     this.clear();
     this.currentScreen = "heroes";
     const state = this.gsm.current;
+    const screen = this.makeScreen(`🦸 Heroes (${state.heroes.length})`);
 
-    const screen = this.makeScreen("🦸 Heroes");
+    const rc: Record<string, string> = { legendary: "#ffd700", epic: "#a4f", rare: "#48f", uncommon: "#4b4", common: "#888" };
+    const rarityOrder = ["legendary", "epic", "rare", "uncommon", "common"];
 
+    const sorted = [...state.heroes].map((h) => ({ hero: h, tmpl: HERO_TEMPLATES.find((t) => t.id === h.templateId) }))
+      .filter((h) => h.tmpl)
+      .sort((a, b) => rarityOrder.indexOf(a.tmpl!.rarity) - rarityOrder.indexOf(b.tmpl!.rarity));
+
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "overflow-y:auto;max-height:calc(100vh - 100px);width:100%;max-width:700px;padding:0 16px;";
+
+    let lastRarity = "";
     const grid = document.createElement("div");
-    grid.style.cssText = "display:flex; flex-wrap:wrap; gap:10px; justify-content:center; overflow-y:auto; max-height:400px;";
+    grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;";
 
-    const rarityColors: Record<string, string> = { common: "#888", uncommon: "#4b4", rare: "#48f", epic: "#a4f", legendary: "#ffd700" };
-
-    for (const hero of state.heroes) {
-      const tmpl = HERO_TEMPLATES.find((t) => t.id === hero.templateId);
+    for (const { hero, tmpl } of sorted) {
       if (!tmpl) continue;
+      const color = rc[tmpl.rarity] ?? "#888";
+
+      if (tmpl.rarity !== lastRarity) {
+        lastRarity = tmpl.rarity;
+        const label = document.createElement("div");
+        label.style.cssText = `grid-column:1/-1;color:${color};font-size:13px;font-weight:bold;padding:8px 0 4px;border-bottom:1px solid ${color}40;margin-top:8px;text-transform:uppercase;`;
+        label.textContent = `${tmpl.rarity} (${sorted.filter((s) => s.tmpl!.rarity === tmpl.rarity).length})`;
+        grid.appendChild(label);
+      }
 
       const card = document.createElement("div");
-      const color = rarityColors[tmpl.rarity] ?? "#888";
-      card.style.cssText = `
-        width:120px; padding:10px; border-radius:8px; cursor:pointer;
-        background:rgba(20,10,40,0.8); border:2px solid ${color};
-        text-align:center; transition:transform 0.15s;
-      `;
+      card.style.cssText = `padding:10px;border-radius:10px;cursor:pointer;background:rgba(20,10,40,0.8);border:2px solid ${color};text-align:center;transition:transform 0.15s;`;
+      const hp = tmpl.baseStats.hp + tmpl.growthPerLevel.hp * (hero.level - 1);
+      const atk = tmpl.baseStats.atk + tmpl.growthPerLevel.atk * (hero.level - 1);
       card.innerHTML = `
-        <div style="display:flex; justify-content:center; margin-bottom:6px;">${heroPortrait(tmpl.id, 64, color)}</div>
-        <div style="font-size:13px; color:${color}; font-weight:bold;">${tmpl.name}</div>
-        <div style="font-size:11px; color:#aaa;">Lv.${hero.level} ${tmpl.heroClass}</div>
-        <div style="font-size:10px; color:#888; margin-top:4px;">HP ${tmpl.baseStats.hp + tmpl.growthPerLevel.hp * (hero.level - 1)} ATK ${tmpl.baseStats.atk + tmpl.growthPerLevel.atk * (hero.level - 1)}</div>
+        <div style="display:flex;justify-content:center;margin-bottom:6px;">${heroPortrait(tmpl.id, 72, color)}</div>
+        <div style="font-size:13px;color:${color};font-weight:bold;">${tmpl.name}</div>
+        <div style="font-size:11px;color:#ccc;">Lv.${hero.level} ${ELEMENT_EMOJI[tmpl.element] ?? ""} ${tmpl.heroClass}</div>
+        <div style="font-size:10px;color:#888;margin-top:2px;">HP ${hp} ATK ${atk}</div>
       `;
-
-      const lvlBtn = document.createElement("button");
       const cost = Math.round(50 * 1.12 ** (hero.level - 1));
-      lvlBtn.style.cssText = `
-        margin-top:6px; padding:4px 12px; font-size:10px; border-radius:4px; cursor:pointer;
-        background:rgba(255,215,0,0.15); border:1px solid #ffd700; color:#ffd700;
-      `;
-      lvlBtn.textContent = `Level Up (💰${cost})`;
-      lvlBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gsm.spendGold(cost)) {
-          this.gsm.addExpToHero(hero.instanceId, 9999);
-          this.trackLevelUp();
-          this.showHeroes();
-        }
-      });
+      const lvlBtn = document.createElement("button");
+      lvlBtn.style.cssText = `margin-top:6px;padding:5px 14px;font-size:11px;border-radius:6px;cursor:pointer;width:100%;background:rgba(255,215,0,0.1);border:1px solid #ffd700;color:#ffd700;transition:background 0.15s;`;
+      lvlBtn.textContent = `Level Up 💰${cost}`;
+      lvlBtn.addEventListener("click", (e) => { e.stopPropagation(); if (this.gsm.spendGold(cost)) { this.gsm.addExpToHero(hero.instanceId, 9999); this.trackLevelUp(); this.showHeroes(); } });
       card.appendChild(lvlBtn);
-
-      card.addEventListener("mouseenter", () => { card.style.transform = "scale(1.05)"; });
+      card.addEventListener("mouseenter", () => { card.style.transform = "scale(1.03)"; });
       card.addEventListener("mouseleave", () => { card.style.transform = ""; });
       grid.appendChild(card);
     }
 
-    screen.appendChild(grid);
+    wrap.appendChild(grid);
+    screen.appendChild(wrap);
     this.container.appendChild(screen);
   }
 

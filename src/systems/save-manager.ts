@@ -32,6 +32,7 @@ export function loadGame(): GameState | null {
   try {
     const data = JSON.parse(raw) as SaveData;
     if (data.version && data.state) {
+      if (data.state.mapLevel === undefined) data.state.mapLevel = 1;
       return data.state;
     }
     return data as unknown as GameState;

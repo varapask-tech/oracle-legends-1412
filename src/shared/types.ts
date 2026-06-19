@@ -75,6 +75,7 @@ export interface GameState {
   currentStage: string;
   lastOnlineAt: number;
   totalPlayTime: number;
+  mapLevel: number;
 }
 
 export interface IdleReward {
