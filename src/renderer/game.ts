@@ -372,7 +372,7 @@ export class Game {
 
     const title = document.createElement("div");
     title.style.cssText = "text-align:center;";
-    title.innerHTML = `<h1 style="color:#ffd700;font-size:36px;text-shadow:0 0 30px rgba(255,215,0,0.4);margin:0;">Oracle Legends</h1><p style="color:#aa88ff;font-size:14px;margin:4px 0 0;">Universe 1412</p>`;
+    title.innerHTML = `<img src="/assets/logo-oracle-legends.png" style="max-width:400px;width:80%;height:auto;filter:drop-shadow(0 4px 20px rgba(100,50,200,0.4));" onerror="this.outerHTML='<h1 style=\\'color:#ffd700;font-size:36px;text-shadow:0 0 30px rgba(255,215,0,0.4);margin:0;\\'>Oracle Legends</h1><p style=\\'color:#aa88ff;font-size:14px;margin:4px 0 0;\\'>Universe 1412</p>'">`;
     menu.appendChild(title);
 
     const stats = document.createElement("div");

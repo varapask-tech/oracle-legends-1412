@@ -52,29 +52,10 @@ export interface MonsterInstance {
 let monsterSheet: HTMLImageElement | null = null;
 let sheetReady = false;
 
-function removeBlackBg(img: HTMLImageElement): HTMLCanvasElement {
-  const c = document.createElement("canvas");
-  c.width = img.width; c.height = img.height;
-  const ctx = c.getContext("2d")!;
-  ctx.drawImage(img, 0, 0);
-  const data = ctx.getImageData(0, 0, c.width, c.height);
-  const px = data.data;
-  for (let i = 0; i < px.length; i += 4) {
-    if (px[i] < 15 && px[i + 1] < 15 && px[i + 2] < 15) px[i + 3] = 0;
-  }
-  ctx.putImageData(data, 0, 0);
-  return c;
-}
-
-let cleanSheet: HTMLCanvasElement | null = null;
-
 function ensureSheet(): void {
   if (monsterSheet) return;
   monsterSheet = new Image();
-  monsterSheet.onload = () => {
-    cleanSheet = removeBlackBg(monsterSheet!);
-    sheetReady = true;
-  };
+  monsterSheet.onload = () => { sheetReady = true; };
   monsterSheet.src = "/assets/sprites/td-monsters.png";
 }
 
@@ -205,11 +186,11 @@ export function renderMonster(
     ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.02) * 0.3;
   }
 
-  if (sheetReady && cleanSheet) {
+  if (sheetReady && monsterSheet) {
     const col = monster.config.spriteCol + monster.animFrame;
     const row = monster.config.spriteRow;
     ctx.drawImage(
-      cleanSheet,
+      monsterSheet,
       col * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE,
       dx, dy, drawSize, drawSize,
     );
